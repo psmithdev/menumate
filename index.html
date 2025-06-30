@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Menu Mate - Food Suggestion Thailand</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Header / App Title -->
+      <header>
+        <h1>Menu Mate</h1>
+        <p>Food Ordering Suggestion Generator (Thailand)</p>
+      </header>
+
+      <!-- Menu Upload / OCR Section -->
+      <section id="menu-upload">
+        <h2>Step 1: Upload or Scan Menu</h2>
+        <input type="file" accept="image/*" />
+        <button disabled>Scan & Translate (Coming Soon)</button>
+      </section>
+
+      <!-- Preferences & Filters -->
+      <section id="preferences">
+        <h2>Step 2: Set Your Preferences</h2>
+        <form>
+          <label
+            >Spice Level:
+            <select>
+              <option>Mild</option>
+              <option>Medium</option>
+              <option>Spicy</option>
+            </select>
+          </label>
+          <label
+            >Calories (max):
+            <input type="number" min="0" placeholder="e.g. 500" />
+          </label>
+          <label
+            >Protein (min grams):
+            <input type="number" min="0" placeholder="e.g. 20" />
+          </label>
+          <label> <input type="checkbox" /> Vegetarian </label>
+          <label> <input type="checkbox" /> Halal </label>
+          <label> <input type="checkbox" /> Exclude Pork </label>
+          <label> <input type="checkbox" /> Exclude Sugar </label>
+          <label> <input type="checkbox" /> Exclude High Fructose </label>
+        </form>
+      </section>
+
+      <!-- Budget Input -->
+      <section id="budget">
+        <h2>Budget</h2>
+        <label
+          >How much do you have? (Baht)
+          <input type="number" min="0" placeholder="e.g. 150" />
+        </label>
+      </section>
+
+      <!-- Suggestion Buttons -->
+      <section id="suggestions">
+        <h2>Step 3: Get Suggestions</h2>
+        <button>What to eat?</button>
+        <button>Vegetarian</button>
+        <button>Bodybuilder</button>
+        <button>Spicy</button>
+        <button>Surprise Me</button>
+      </section>
+
+      <!-- Results Area -->
+      <section id="results">
+        <h2>Suggestions</h2>
+        <div class="suggestion-list">
+          <!-- Suggested dishes will appear here -->
+        </div>
+      </section>
+
+      <!-- Restaurant Finder -->
+      <section id="restaurant-finder">
+        <h2>Find a Restaurant</h2>
+        <button disabled>Find Nearby (Coming Soon)</button>
+      </section>
+
+      <!-- Google Sign-In Placeholder -->
+      <section id="auth">
+        <h2>Sign In</h2>
+        <button disabled>Sign in with Google (Coming Soon)</button>
+      </section>
+
+      <!-- QR Code Section -->
+      <section id="qr-code">
+        <h2>QR Code for Restaurant Flyer</h2>
+        <div class="qr-placeholder">[QR Code will appear here]</div>
+      </section>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const {
         data: { text },
-      } = await Tesseract.recognize(selectedFile, "eng", {
+      } = await Tesseract.recognize(selectedFile, "tha+eng", {
         logger: (m) => {
           if (m.status === "recognizing text") {
             ocrResultDiv.textContent = `Scanning... (${Math.round(

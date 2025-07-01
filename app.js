@@ -60,11 +60,37 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Translation function (placeholder - you'll need to add your API key)
+  // Translation function with Google Translate API
   async function translateText(text) {
-    // For now, return a placeholder. You'll need to:
-    // 1. Get a Google Translate API key
-    // 2. Replace this with actual API call
-    return `[Translated: ${text}] (Add your API key to enable real translation)`;
+    const apiKey = prompt("Enter your Google Translate API key:");
+    if (!apiKey) {
+      return "Translation skipped - no API key provided";
+    }
+
+    try {
+      const response = await fetch(
+        `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            q: text,
+            target: "en",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.data.translations[0].translatedText;
+    } catch (error) {
+      console.error("Translation error:", error);
+      return `Translation failed: ${error.message}`;
+    }
   }
 });

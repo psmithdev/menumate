@@ -93,4 +93,174 @@ document.addEventListener("DOMContentLoaded", () => {
       return `Translation failed: ${error.message}`;
     }
   }
+
+  // --- Demo Menu Data ---
+  const menuItems = [
+    {
+      nameTH: "ผัดไทย",
+      nameEN: "Pad Thai",
+      calories: 400,
+      protein: 15,
+      spice: "Mild",
+      vegetarian: false,
+      halal: true,
+      pork: false,
+      sugar: true,
+      fructose: false,
+    },
+    {
+      nameTH: "ส้มตำ",
+      nameEN: "Som Tum (Papaya Salad)",
+      calories: 180,
+      protein: 3,
+      spice: "Spicy",
+      vegetarian: true,
+      halal: true,
+      pork: false,
+      sugar: false,
+      fructose: false,
+    },
+    {
+      nameTH: "ข้าวมันไก่",
+      nameEN: "Khao Man Gai (Chicken Rice)",
+      calories: 600,
+      protein: 25,
+      spice: "Mild",
+      vegetarian: false,
+      halal: true,
+      pork: false,
+      sugar: false,
+      fructose: false,
+    },
+    {
+      nameTH: "หมูกรอบ",
+      nameEN: "Crispy Pork",
+      calories: 700,
+      protein: 20,
+      spice: "Mild",
+      vegetarian: false,
+      halal: false,
+      pork: true,
+      sugar: false,
+      fructose: false,
+    },
+    {
+      nameTH: "ผัดผักรวม",
+      nameEN: "Stir-fried Mixed Vegetables",
+      calories: 250,
+      protein: 6,
+      spice: "Medium",
+      vegetarian: true,
+      halal: true,
+      pork: false,
+      sugar: false,
+      fructose: false,
+    },
+    {
+      nameTH: "ชาเย็น",
+      nameEN: "Thai Iced Tea",
+      calories: 200,
+      protein: 2,
+      spice: "Mild",
+      vegetarian: true,
+      halal: true,
+      pork: false,
+      sugar: true,
+      fructose: true,
+    },
+  ];
+
+  // --- Filter Reading ---
+  function getFilters() {
+    const spice = document.getElementById("filter-spice").value;
+    const calories =
+      parseInt(document.getElementById("filter-calories").value) || Infinity;
+    const protein =
+      parseInt(document.getElementById("filter-protein").value) || 0;
+    const vegetarian = document.getElementById("filter-vegetarian").checked;
+    const halal = document.getElementById("filter-halal").checked;
+    const excludePork = document.getElementById("filter-exclude-pork").checked;
+    const excludeSugar = document.getElementById(
+      "filter-exclude-sugar"
+    ).checked;
+    const excludeFructose = document.getElementById(
+      "filter-exclude-fructose"
+    ).checked;
+    return {
+      spice,
+      calories,
+      protein,
+      vegetarian,
+      halal,
+      excludePork,
+      excludeSugar,
+      excludeFructose,
+    };
+  }
+
+  // --- Suggestion Logic ---
+  function filterMenu(filters) {
+    return menuItems.filter((item) => {
+      if (filters.spice !== "Mild" && item.spice !== filters.spice)
+        return false;
+      if (item.calories > filters.calories) return false;
+      if (item.protein < filters.protein) return false;
+      if (filters.vegetarian && !item.vegetarian) return false;
+      if (filters.halal && !item.halal) return false;
+      if (filters.excludePork && item.pork) return false;
+      if (filters.excludeSugar && item.sugar) return false;
+      if (filters.excludeFructose && item.fructose) return false;
+      return true;
+    });
+  }
+
+  function showSuggestions(items) {
+    const resultsDiv = document.querySelector("#results .suggestion-list");
+    if (!items.length) {
+      resultsDiv.innerHTML = "<p>No matching dishes found.</p>";
+      return;
+    }
+    resultsDiv.innerHTML = items
+      .map(
+        (item) =>
+          `<div class="suggestion-item">
+        <strong>${item.nameEN}</strong> (${item.nameTH})<br>
+        Calories: ${item.calories}, Protein: ${item.protein}g, Spice: ${
+            item.spice
+          }<br>
+        ${item.vegetarian ? "Vegetarian" : ""} ${item.halal ? "Halal" : ""}
+      </div>`
+      )
+      .join("");
+  }
+
+  // --- Button Event Listeners ---
+  document.getElementById("btn-what-to-eat").addEventListener("click", () => {
+    const filters = getFilters();
+    showSuggestions(filterMenu(filters));
+  });
+  document.getElementById("btn-vegetarian").addEventListener("click", () => {
+    const filters = getFilters();
+    filters.vegetarian = true;
+    showSuggestions(filterMenu(filters));
+  });
+  document.getElementById("btn-bodybuilder").addEventListener("click", () => {
+    const filters = getFilters();
+    filters.protein = Math.max(filters.protein, 20);
+    showSuggestions(filterMenu(filters));
+  });
+  document.getElementById("btn-spicy").addEventListener("click", () => {
+    const filters = getFilters();
+    filters.spice = "Spicy";
+    showSuggestions(filterMenu(filters));
+  });
+  document.getElementById("btn-surprise").addEventListener("click", () => {
+    const filters = getFilters();
+    const filtered = filterMenu(filters);
+    if (filtered.length) {
+      showSuggestions([filtered[Math.floor(Math.random() * filtered.length)]]);
+    } else {
+      showSuggestions([]);
+    }
+  });
 });

@@ -107,6 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pork: false,
       sugar: true,
       fructose: false,
+      price: 60,
     },
     {
       nameTH: "ส้มตำ",
@@ -119,6 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pork: false,
       sugar: false,
       fructose: false,
+      price: 40,
     },
     {
       nameTH: "ข้าวมันไก่",
@@ -131,6 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pork: false,
       sugar: false,
       fructose: false,
+      price: 50,
     },
     {
       nameTH: "หมูกรอบ",
@@ -143,6 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pork: true,
       sugar: false,
       fructose: false,
+      price: 70,
     },
     {
       nameTH: "ผัดผักรวม",
@@ -155,6 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pork: false,
       sugar: false,
       fructose: false,
+      price: 45,
     },
     {
       nameTH: "ชาเย็น",
@@ -167,6 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pork: false,
       sugar: true,
       fructose: true,
+      price: 25,
     },
   ];
 
@@ -186,6 +192,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const excludeFructose = document.getElementById(
       "filter-exclude-fructose"
     ).checked;
+    const budget =
+      parseInt(document.getElementById("budget-input").value) || Infinity;
     return {
       spice,
       calories,
@@ -195,6 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
       excludePork,
       excludeSugar,
       excludeFructose,
+      budget,
     };
   }
 
@@ -210,6 +219,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (filters.excludePork && item.pork) return false;
       if (filters.excludeSugar && item.sugar) return false;
       if (filters.excludeFructose && item.fructose) return false;
+      if (item.price > filters.budget) return false;
       return true;
     });
   }
@@ -225,6 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
         (item) =>
           `<div class="suggestion-item">
         <strong>${item.nameEN}</strong> (${item.nameTH})<br>
+        Price: ${item.price} Baht<br>
         Calories: ${item.calories}, Protein: ${item.protein}g, Spice: ${
             item.spice
           }<br>
@@ -234,33 +245,120 @@ document.addEventListener("DOMContentLoaded", () => {
       .join("");
   }
 
-  // --- Button Event Listeners ---
+  // --- Helper: Get random combinations ---
+  function getRandomCombinations(arr, comboSize, maxBudget, maxResults = 3) {
+    // Generate all combinations of comboSize
+    function* combinations(array, size, start = 0, initialCombo = []) {
+      if (initialCombo.length === size) {
+        yield initialCombo;
+        return;
+      }
+      for (let i = start; i < array.length; i++) {
+        yield* combinations(
+          array,
+          size,
+          i + 1,
+          initialCombo.concat([array[i]])
+        );
+      }
+    }
+    // Filter combinations by budget
+    const validCombos = [];
+    for (const combo of combinations(arr, comboSize)) {
+      const total = combo.reduce((sum, item) => sum + item.price, 0);
+      if (total <= maxBudget) {
+        validCombos.push({ items: combo, total });
+      }
+    }
+    // Shuffle and pick up to maxResults
+    for (let i = validCombos.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [validCombos[i], validCombos[j]] = [validCombos[j], validCombos[i]];
+    }
+    return validCombos.slice(0, maxResults);
+  }
+
+  // --- Show combinations in results ---
+  function showComboSuggestions(combos) {
+    const resultsDiv = document.querySelector("#results .suggestion-list");
+    if (!combos.length) {
+      resultsDiv.innerHTML =
+        "<p>No combinations of dishes fit your budget and filters.</p>";
+      return;
+    }
+    resultsDiv.innerHTML = combos
+      .map(
+        (combo) =>
+          `<div class="suggestion-combo">
+        ${combo.items
+          .map(
+            (item) =>
+              `<strong>${item.nameEN}</strong> (${item.nameTH}) - ${item.price} Baht`
+          )
+          .join("<br>")}
+        <br><strong>Total: ${combo.total} Baht</strong>
+      </div>`
+      )
+      .join("<hr>");
+  }
+
+  // --- Button Event Listeners (refined for budget combos) ---
   document.getElementById("btn-what-to-eat").addEventListener("click", () => {
     const filters = getFilters();
-    showSuggestions(filterMenu(filters));
+    const filtered = filterMenu(filters);
+    if (filtered.length < 2) {
+      showSuggestions(filtered);
+      return;
+    }
+    const combos2 = getRandomCombinations(filtered, 2, filters.budget);
+    const combos3 = getRandomCombinations(filtered, 3, filters.budget);
+    showComboSuggestions([...combos2, ...combos3]);
   });
   document.getElementById("btn-vegetarian").addEventListener("click", () => {
     const filters = getFilters();
     filters.vegetarian = true;
-    showSuggestions(filterMenu(filters));
+    const filtered = filterMenu(filters);
+    if (filtered.length < 2) {
+      showSuggestions(filtered);
+      return;
+    }
+    const combos2 = getRandomCombinations(filtered, 2, filters.budget);
+    const combos3 = getRandomCombinations(filtered, 3, filters.budget);
+    showComboSuggestions([...combos2, ...combos3]);
   });
   document.getElementById("btn-bodybuilder").addEventListener("click", () => {
     const filters = getFilters();
     filters.protein = Math.max(filters.protein, 20);
-    showSuggestions(filterMenu(filters));
+    const filtered = filterMenu(filters);
+    if (filtered.length < 2) {
+      showSuggestions(filtered);
+      return;
+    }
+    const combos2 = getRandomCombinations(filtered, 2, filters.budget);
+    const combos3 = getRandomCombinations(filtered, 3, filters.budget);
+    showComboSuggestions([...combos2, ...combos3]);
   });
   document.getElementById("btn-spicy").addEventListener("click", () => {
     const filters = getFilters();
     filters.spice = "Spicy";
-    showSuggestions(filterMenu(filters));
+    const filtered = filterMenu(filters);
+    if (filtered.length < 2) {
+      showSuggestions(filtered);
+      return;
+    }
+    const combos2 = getRandomCombinations(filtered, 2, filters.budget);
+    const combos3 = getRandomCombinations(filtered, 3, filters.budget);
+    showComboSuggestions([...combos2, ...combos3]);
   });
   document.getElementById("btn-surprise").addEventListener("click", () => {
     const filters = getFilters();
     const filtered = filterMenu(filters);
-    if (filtered.length) {
-      showSuggestions([filtered[Math.floor(Math.random() * filtered.length)]]);
-    } else {
-      showSuggestions([]);
+    if (filtered.length < 2) {
+      showSuggestions(filtered);
+      return;
     }
+    const combos2 = getRandomCombinations(filtered, 2, filters.budget, 1);
+    const combos3 = getRandomCombinations(filtered, 3, filters.budget, 1);
+    showComboSuggestions([...combos2, ...combos3]);
   });
 });

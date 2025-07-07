@@ -1,4 +1,25 @@
-/* Basic CSS Reset */
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+/* Reset and base styles */
 * {
   margin: 0;
   padding: 0;
@@ -6,7 +27,7 @@
 }
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: "Segoe UI", Arial, sans-serif;
   background: #f8f8f8;
   color: #222;
   min-height: 100vh;
@@ -14,17 +35,29 @@ body {
 }
 
 #app {
-  max-width: 600px;
+  max-width: 700px;
   margin: 2rem auto;
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  padding: 2rem;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(42, 122, 226, 0.08);
+  padding: 2.5rem 2rem;
 }
 
 header {
   text-align: center;
   margin-bottom: 2rem;
+}
+
+header h1 {
+  font-size: 2.2rem;
+  color: #2a7ae2;
+  margin-bottom: 0.5rem;
+  letter-spacing: 1px;
+}
+
+header p {
+  color: #555;
+  font-size: 1.1rem;
 }
 
 section {
@@ -40,17 +73,27 @@ section h2 {
 
 form label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.7rem;
   font-weight: 500;
 }
 
 input[type="number"],
-select {
+select,
+input[type="file"] {
   margin-left: 0.5rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid #ccc;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid #c3dafe;
   font-size: 1rem;
+  background: #f4f8ff;
+  transition: border 0.2s;
+}
+
+input[type="number"]:focus,
+select:focus,
+input[type="file"]:focus {
+  border: 1.5px solid #2a7ae2;
+  outline: none;
 }
 
 input[type="checkbox"] {
@@ -59,25 +102,28 @@ input[type="checkbox"] {
 
 button {
   margin: 0.25rem 0.5rem 0.25rem 0;
-  padding: 0.5rem 1.2rem;
+  padding: 0.6rem 1.4rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: #2a7ae2;
   color: #fff;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(42, 122, 226, 0.07);
 }
+
 button:disabled {
   background: #b0b0b0;
   cursor: not-allowed;
 }
+
 button:hover:not(:disabled) {
   background: #185bb5;
 }
 
-#results .suggestion-list {
+.suggestion-list {
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
@@ -87,8 +133,8 @@ button:hover:not(:disabled) {
 .suggestion-combo {
   background: #f4f8ff;
   border: 1px solid #dbeafe;
-  border-radius: 8px;
-  padding: 1rem;
+  border-radius: 10px;
+  padding: 1.1rem;
   box-shadow: 0 1px 4px rgba(42, 122, 226, 0.06);
 }
 
@@ -137,7 +183,7 @@ button:hover:not(:disabled) {
   font-size: 1rem;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 800px) {
   #app {
     max-width: 98vw;
     padding: 1rem;

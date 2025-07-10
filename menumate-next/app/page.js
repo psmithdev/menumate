@@ -23,7 +23,9 @@ export default function Home() {
     excludeFructose: false,
   });
 
-  // ...other state (budget, menu, results) will go here
+  // State for menu and results
+  const [translatedMenu, setTranslatedMenu] = useState([]); // from MenuUpload
+  const [results, setResults] = useState([]);
 
   return (
     <div id="app">
@@ -31,15 +33,19 @@ export default function Home() {
         <h1>Menu Mate</h1>
         <p>Food Ordering Suggestion Generator (Thailand)</p>
       </header>
-      <MenuUpload />
+      <MenuUpload setTranslatedMenu={setTranslatedMenu} />
       <MenuPreferences
         preferences={preferences}
         setPreferences={setPreferences}
       />
       <pre>{JSON.stringify(preferences, null, 2)}</pre>
       <MenuBudget />
-      <MenuSuggestions />
-      <MenuResults />
+      <MenuSuggestions
+        preferences={preferences}
+        menu={translatedMenu}
+        setResults={setResults}
+      />
+      <MenuResults results={results} />
       <RestaurantFinder />
       <AuthPlaceholder />
       <QRCodeSection />

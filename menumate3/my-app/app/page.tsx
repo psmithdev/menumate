@@ -19,9 +19,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import Image from "next/image";
+import { PhotoUpload } from "@/components/PhotoUpload";
+import React, { useRef } from "react";
 
 type Screen =
   | "welcome"
+  | "photo"
   | "camera"
   | "processing"
   | "results"
@@ -48,6 +51,9 @@ type Dish = {
 export default function MenuTranslatorDesign() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
+  const [menuImage, setMenuImage] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const mockDishes = [
     {
@@ -189,6 +195,29 @@ export default function MenuTranslatorDesign() {
   }
 
   if (currentScreen === "camera") {
+    // File input ref and handler
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        setCameraError("Please select a valid image file.");
+        return;
+      }
+      // Validate file size (e.g., max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setCameraError("Image must be less than 5MB.");
+        return;
+      }
+      setCameraError(null);
+      setMenuImage(file);
+      setCurrentScreen("processing");
+    };
+
+    const triggerFileInput = () => {
+      fileInputRef.current?.click();
+    };
+
     return (
       <div className="min-h-screen bg-black relative">
         {/* Camera Viewfinder */}
@@ -244,21 +273,22 @@ export default function MenuTranslatorDesign() {
         {/* Bottom Controls */}
         <div className="absolute bottom-0 left-0 right-0 z-20 p-6">
           <div className="flex items-center justify-center gap-8">
-            {/* Gallery Button */}
+            {/* Gallery Button (Upload) */}
             <Button
               variant="ghost"
               size="sm"
               className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-lg text-white hover:bg-white/30"
+              onClick={triggerFileInput}
             >
               <Upload className="w-5 h-5" />
             </Button>
 
-            {/* Capture Button */}
+            {/* Capture Button (Camera) */}
             <Button
-              onClick={() => setCurrentScreen("processing")}
-              className="w-20 h-20 rounded-full bg-white hover:bg-gray-100 shadow-2xl relative"
+              className="w-20 h-20 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-lg"
+              onClick={triggerFileInput}
             >
-              <div className="w-16 h-16 rounded-full bg-white border-4 border-gray-200"></div>
+              <Camera className="w-10 h-10" />
             </Button>
 
             {/* Flash Button */}
@@ -270,7 +300,17 @@ export default function MenuTranslatorDesign() {
               <Sparkles className="w-5 h-5" />
             </Button>
           </div>
-
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          {cameraError && (
+            <div className="text-red-500 text-center mt-2">{cameraError}</div>
+          )}
           {/* Tips */}
           <div className="mt-6 text-center">
             <p className="text-white/70 text-xs">
@@ -279,6 +319,17 @@ export default function MenuTranslatorDesign() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (currentScreen === "photo") {
+    return (
+      <PhotoUpload
+        onImageSelected={(file) => {
+          setMenuImage(file);
+          setCurrentScreen("processing");
+        }}
+      />
     );
   }
 

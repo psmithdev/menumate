@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Camera,
   Upload,
@@ -54,6 +54,9 @@ export default function MenuTranslatorDesign() {
   const [menuImage, setMenuImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [ocrText, setOcrText] = useState<string | null>(null);
+  const [processingError, setProcessingError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const mockDishes = [
     {
@@ -123,6 +126,33 @@ export default function MenuTranslatorDesign() {
       protein: "32g",
     },
   ];
+
+  useEffect(() => {
+    if (currentScreen === "processing" && menuImage) {
+      setIsProcessing(true);
+      setProcessingError(null);
+
+      const formData = new FormData();
+      formData.append("image", menuImage);
+
+      fetch("/api/ocr", {
+        method: "POST",
+        body: formData,
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error("OCR failed");
+          const data = await res.json();
+          setOcrText(data.text);
+          setCurrentScreen("results");
+        })
+        .catch((err) => {
+          setProcessingError("Failed to process image. Please try again.");
+        })
+        .finally(() => {
+          setIsProcessing(false);
+        });
+    }
+  }, [currentScreen, menuImage]);
 
   if (currentScreen === "welcome") {
     return (
@@ -344,20 +374,22 @@ export default function MenuTranslatorDesign() {
             </div>
 
             {/* Processing Animation */}
-            <div className="flex justify-center gap-2 mb-6">
-              <div
-                className="w-3 h-3 bg-white rounded-full animate-bounce"
-                style={{ animationDelay: "0ms" }}
-              ></div>
-              <div
-                className="w-3 h-3 bg-white rounded-full animate-bounce"
-                style={{ animationDelay: "150ms" }}
-              ></div>
-              <div
-                className="w-3 h-3 bg-white rounded-full animate-bounce"
-                style={{ animationDelay: "300ms" }}
-              ></div>
-            </div>
+            {isProcessing && (
+              <div className="flex justify-center gap-2 mb-6">
+                <div
+                  className="w-3 h-3 bg-white rounded-full animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                ></div>
+                <div
+                  className="w-3 h-3 bg-white rounded-full animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                ></div>
+                <div
+                  className="w-3 h-3 bg-white rounded-full animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                ></div>
+              </div>
+            )}
           </div>
 
           {/* Processing Steps */}
@@ -398,6 +430,9 @@ export default function MenuTranslatorDesign() {
             <div className="bg-gradient-to-r from-blue-400 to-purple-400 h-2 rounded-full w-1/2 animate-pulse"></div>
           </div>
 
+          {processingError && (
+            <div className="text-red-400 text-sm mb-4">{processingError}</div>
+          )}
           <p className="text-white/70 text-sm">
             This usually takes 10-15 seconds
           </p>

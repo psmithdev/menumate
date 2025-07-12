@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("Text received for translation, length:", text.length);
+    console.log("Text sample:", text.substring(0, 200));
+    console.log("Target language:", targetLanguage);
 
     // Call Google Translate API
     const apiKey = process.env.GOOGLE_CLOUD_TRANSLATE_API_KEY;
@@ -41,6 +43,7 @@ export async function POST(request: NextRequest) {
       q: text,
       target: targetLanguage,
       format: "text",
+      // Let Google Translate auto-detect the source language
     };
 
     console.log("Sending request to Google Translate API...");

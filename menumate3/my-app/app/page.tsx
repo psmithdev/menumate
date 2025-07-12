@@ -283,7 +283,10 @@ export default function MenuTranslatorDesign() {
   }, [currentScreen, ocrText, targetLanguage]);
 
   // Function to parse OCR text into structured dishes
-  const parseOcrText = (text: string): ParsedDish[] => {
+  const parseOcrText = (
+    text: string,
+    detectedLanguage: string = "en"
+  ): ParsedDish[] => {
     const lines = text.split("\n").filter((line) => line.trim());
     const dishes: ParsedDish[] = [];
 
@@ -297,8 +300,8 @@ export default function MenuTranslatorDesign() {
         const name = line.replace(price, "").trim();
 
         if (name) {
-          // Use AI analysis to enhance the dish data
-          const analysis = analyzeDish(name, "chinese"); // Default to Chinese, can be enhanced
+          // Use AI analysis to enhance the dish data with detected language
+          const analysis = analyzeDish(name, detectedLanguage);
 
           dishes.push({
             id: `dish-${index}`,
@@ -319,7 +322,7 @@ export default function MenuTranslatorDesign() {
         }
       } else if (currencyMatch) {
         // Fallback: just extract the line as a dish name
-        const analysis = analyzeDish(line.trim(), "chinese");
+        const analysis = analyzeDish(line.trim(), detectedLanguage);
 
         dishes.push({
           id: `dish-${index}`,
@@ -346,12 +349,18 @@ export default function MenuTranslatorDesign() {
     if (ocrText) {
       // Detect language from OCR text
       const detected = detectLanguage(ocrText);
+      console.log(
+        "Detected language:",
+        detected,
+        "for text sample:",
+        ocrText.substring(0, 100)
+      );
       setDetectedLanguage(detected);
 
       // Set target language to English by default
       setTargetLanguage("en");
 
-      const dishes = parseOcrText(ocrText);
+      const dishes = parseOcrText(ocrText, detected);
       setParsedDishes(dishes);
     }
   }, [ocrText]);

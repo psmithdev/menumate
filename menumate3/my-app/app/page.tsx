@@ -13,6 +13,7 @@ import {
   ChefHat,
   Leaf,
   Flame,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,6 +30,7 @@ import {
 import { TranslationCache } from "@/utils/translationCache";
 import {
   detectLanguage,
+  getLanguageName,
   SUPPORTED_LANGUAGES,
   type Language,
 } from "@/utils/languages";
@@ -290,57 +292,82 @@ export default function MenuTranslatorDesign() {
     const lines = text.split("\n").filter((line) => line.trim());
     const dishes: ParsedDish[] = [];
 
+    console.log("Parsing OCR text:", text);
+    console.log("Number of lines:", lines.length);
+
     lines.forEach((line, index) => {
-      // Try to extract dish name and price
-      const priceMatch = line.match(/[¥$€£]\s*(\d+(?:\.\d{2})?)/);
-      const currencyMatch = line.match(/[¥$€£]/);
+      console.log(`Processing line ${index}:`, line);
+
+      // More flexible price detection - look for various currency symbols and number patterns
+      const priceMatch = line.match(
+        /[¥$€£฿₿₽₩₪₨₦₡₱₲₴₵₸₺₻₼₽₾₿]\s*(\d+(?:\.\d{2})?)/
+      );
+      const numberMatch = line.match(
+        /(\d+(?:\.\d{2})?)\s*[฿₿₽₩₪₨₦₡₱₲₴₵₸₺₻₼₽₾₿]/
+      );
+      const justNumberMatch = line.match(/(\d+(?:\.\d{2})?)/);
+
+      let price = "";
+      let name = "";
 
       if (priceMatch) {
-        const price = priceMatch[0];
-        const name = line.replace(price, "").trim();
-
-        if (name) {
-          // Use AI analysis to enhance the dish data with detected language
-          const analysis = analyzeDish(name, detectedLanguage);
-
-          dishes.push({
-            id: `dish-${index}`,
-            originalName: name,
-            originalPrice: price,
-            translatedName: undefined, // Will be filled by translation
-            translatedPrice: undefined, // Will be filled by translation
-            description: `Delicious ${name} prepared with authentic ingredients`,
-            tags: analysis.tags,
-            isVegetarian: analysis.isVegetarian,
-            spiceLevel: analysis.spiceLevel,
-            rating: 4.5, // Default
-            time: analysis.cookingTime,
-            calories: analysis.estimatedCalories,
-            protein: analysis.estimatedProtein,
-            ingredients: analysis.ingredients,
-          });
+        // Found currency symbol followed by number
+        price = priceMatch[0];
+        name = line.replace(price, "").trim();
+        console.log(`Found price with currency: ${price}, name: ${name}`);
+      } else if (numberMatch) {
+        // Found number followed by currency symbol
+        price = numberMatch[0];
+        name = line.replace(price, "").trim();
+        console.log(`Found price with number first: ${price}, name: ${name}`);
+      } else if (justNumberMatch && line.length > 5) {
+        // Found just a number, but only if the line is long enough to be a dish
+        const number = justNumberMatch[0];
+        name = line.replace(number, "").trim();
+        // Only treat as price if it's at the end of the line
+        if (line.trim().endsWith(number)) {
+          price = number;
+          console.log(`Found price at end: ${price}, name: ${name}`);
+        } else {
+          // Just treat the whole line as a dish name
+          name = line.trim();
+          price = "Price not detected";
+          console.log(`Treating as dish name: ${name}`);
         }
-      } else if (currencyMatch) {
-        // Fallback: just extract the line as a dish name
-        const analysis = analyzeDish(line.trim(), detectedLanguage);
+      } else {
+        // No price found, treat as dish name
+        name = line.trim();
+        price = "Price not detected";
+        console.log(`No price found, treating as dish: ${name}`);
+      }
+
+      // Only create dish if we have a meaningful name
+      if (name && name.length > 1) {
+        // Use AI analysis to enhance the dish data with detected language
+        const analysis = analyzeDish(name, detectedLanguage);
 
         dishes.push({
           id: `dish-${index}`,
-          originalName: line.trim(),
-          originalPrice: "Price not detected",
-          description: `Delicious ${line.trim()} prepared with authentic ingredients`,
+          originalName: name,
+          originalPrice: price,
+          translatedName: undefined, // Will be filled by translation
+          translatedPrice: undefined, // Will be filled by translation
+          description: `Delicious ${name} prepared with authentic ingredients`,
           tags: analysis.tags,
           isVegetarian: analysis.isVegetarian,
           spiceLevel: analysis.spiceLevel,
-          rating: 4.5,
+          rating: 4.5, // Default
           time: analysis.cookingTime,
           calories: analysis.estimatedCalories,
           protein: analysis.estimatedProtein,
           ingredients: analysis.ingredients,
         });
+
+        console.log(`Created dish: ${name} - ${price}`);
       }
     });
 
+    console.log(`Total dishes created: ${dishes.length}`);
     return dishes;
   };
 
@@ -361,7 +388,29 @@ export default function MenuTranslatorDesign() {
       setTargetLanguage("en");
 
       const dishes = parseOcrText(ocrText, detected);
-      setParsedDishes(dishes);
+      console.log("Parsed dishes:", dishes);
+
+      // If no dishes were parsed, create a fallback dish from the OCR text
+      if (dishes.length === 0 && ocrText.trim()) {
+        console.log("No dishes parsed, creating fallback dish");
+        const fallbackDish: ParsedDish = {
+          id: "fallback-dish",
+          originalName: ocrText.split("\n")[0] || "Menu Item",
+          originalPrice: "Price not detected",
+          description: "Menu item from your uploaded image",
+          tags: ["Menu Item"],
+          isVegetarian: false,
+          spiceLevel: 0,
+          rating: 4.0,
+          time: "15 min",
+          calories: 300,
+          protein: "20g",
+          ingredients: ["Ingredients not specified"],
+        };
+        setParsedDishes([fallbackDish]);
+      } else {
+        setParsedDishes(dishes);
+      }
     }
   }, [ocrText]);
 
@@ -732,12 +781,24 @@ export default function MenuTranslatorDesign() {
                 <h1 className="text-2xl font-bold text-gray-900">
                   Menu Discovered
                 </h1>
-                <p className="text-gray-600 text-sm">
-                  {ocrText
-                    ? `${ocrText.split("\n").length} lines extracted`
-                    : "Processing..."}{" "}
-                  • Golden Dragon Restaurant
-                </p>
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <span>{parsedDishes.length} dishes found</span>
+                  {detectedLanguage && (
+                    <Badge variant="outline" className="text-xs">
+                      <Globe className="w-3 h-3 mr-1" />
+                      {getLanguageName(detectedLanguage)}
+                    </Badge>
+                  )}
+                  {translatedText && (
+                    <Badge
+                      variant="secondary"
+                      className="text-xs bg-green-100 text-green-700"
+                    >
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Translated
+                    </Badge>
+                  )}
+                </div>
               </div>
               <Button
                 variant="outline"
@@ -779,115 +840,179 @@ export default function MenuTranslatorDesign() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
                 <Globe className="w-5 h-5 text-blue-500" />
-                Extracted Text
+                {translatedText ? "Original vs Translated" : "Extracted Text"}
               </h2>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentScreen("translate")}
-                className="text-blue-600 border-blue-200 hover:bg-blue-50"
-              >
-                Translate →
-              </Button>
+              {!translatedText && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentScreen("translate")}
+                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                >
+                  Translate →
+                </Button>
+              )}
             </div>
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
-                {ocrText}
-              </pre>
-            </div>
+
+            {translatedText ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                    Original ({getLanguageName(detectedLanguage)})
+                  </h3>
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                      {ocrText}
+                    </pre>
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    Translated (English)
+                  </h3>
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono leading-relaxed">
+                      {translatedText}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                  {ocrText}
+                </pre>
+              </div>
+            )}
+
             <p className="text-xs text-gray-500 mt-2">
-              This is the raw text extracted from your menu image. Click
-              "Translate" to convert it to English.
+              {translatedText
+                ? "Side-by-side comparison of original and translated text."
+                : 'This is the raw text extracted from your menu image. Click "Translate" to convert it to English.'}
             </p>
           </div>
         )}
 
         {/* Dishes Grid */}
         <div className="p-4 space-y-4">
-          {parsedDishes.map((dish) => (
-            <Card
-              key={dish.id}
-              className="overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer"
-              onClick={() => {
-                setSelectedDish(dish);
-                setCurrentScreen("dish-detail");
-              }}
-            >
-              <div className="flex">
-                {/* Image */}
-                <div className="relative w-24 h-24 flex-shrink-0">
-                  <Image
-                    src={"/placeholder.svg"}
-                    alt={dish.originalName}
-                    fill
-                    className="object-cover"
-                  />
-                  <div className="absolute top-2 right-2">
-                    <Heart className="w-4 h-4 text-white/80 hover:text-red-400 cursor-pointer" />
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h3 className="font-semibold text-gray-900 leading-tight">
-                        {dish.translatedName || dish.originalName}
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {dish.originalName}
-                      </p>
+          {parsedDishes.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 mb-4">
+                No dishes found in the OCR text.
+              </p>
+              <p className="text-sm text-gray-400">
+                Debug info: {parsedDishes.length} dishes parsed
+              </p>
+              {ocrText && (
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-blue-600">
+                    View OCR Text
+                  </summary>
+                  <pre className="text-xs text-gray-600 mt-2 bg-gray-100 p-2 rounded whitespace-pre-wrap">
+                    {ocrText}
+                  </pre>
+                </details>
+              )}
+            </div>
+          ) : (
+            parsedDishes.map((dish) => (
+              <Card
+                key={dish.id}
+                className="overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer"
+                onClick={() => {
+                  setSelectedDish(dish);
+                  setCurrentScreen("dish-detail");
+                }}
+              >
+                <div className="flex">
+                  {/* Image */}
+                  <div className="relative w-24 h-24 flex-shrink-0">
+                    <Image
+                      src={"/placeholder.svg"}
+                      alt={dish.originalName}
+                      fill
+                      className="object-cover"
+                    />
+                    <div className="absolute top-2 right-2">
+                      <Heart className="w-4 h-4 text-white/80 hover:text-red-400 cursor-pointer" />
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-orange-600">
-                        {dish.translatedPrice || dish.originalPrice}
-                      </p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                        <span className="text-xs text-gray-600">
-                          {dish.rating}
-                        </span>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 leading-tight">
+                          {dish.translatedName || dish.originalName}
+                        </h3>
+                        {dish.translatedName &&
+                          dish.translatedName !== dish.originalName && (
+                            <p className="text-xs text-gray-500 mt-1 italic">
+                              {dish.originalName}
+                            </p>
+                          )}
+                        {!dish.translatedName && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                            <span className="text-xs text-yellow-600">
+                              Pending translation
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-orange-600">
+                          {dish.translatedPrice || dish.originalPrice}
+                        </p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                          <span className="text-xs text-gray-600">
+                            {dish.rating}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Tags and Info */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Clock className="w-3 h-3" />
-                      {dish.time}
+                    {/* Tags and Info */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1 text-xs text-gray-500">
+                        <Clock className="w-3 h-3" />
+                        {dish.time}
+                      </div>
+                      <div className="flex items-center gap-1 text-xs">
+                        {"🌶️".repeat(dish.spiceLevel)}
+                        {dish.spiceLevel === 0 && (
+                          <span className="text-gray-400">Mild</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 text-xs">
-                      {"🌶️".repeat(dish.spiceLevel)}
-                      {dish.spiceLevel === 0 && (
-                        <span className="text-gray-400">Mild</span>
+
+                    <div className="flex flex-wrap gap-1">
+                      {dish.tags.slice(0, 2).map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="text-xs px-2 py-0"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                      {dish.isVegetarian && (
+                        <Badge
+                          variant="outline"
+                          className="text-xs px-2 py-0 text-green-600 border-green-200"
+                        >
+                          Vegetarian
+                        </Badge>
                       )}
                     </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-1">
-                    {dish.tags.slice(0, 2).map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="text-xs px-2 py-0"
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                    {dish.isVegetarian && (
-                      <Badge
-                        variant="outline"
-                        className="text-xs px-2 py-0 text-green-600 border-green-200"
-                      >
-                        Vegetarian
-                      </Badge>
-                    )}
-                  </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Floating Action Button */}

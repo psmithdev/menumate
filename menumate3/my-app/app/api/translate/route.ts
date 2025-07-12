@@ -1,43 +1,80 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-// Mock translation API endpoint
 export async function POST(request: NextRequest) {
+  const useMock = process.env.USE_MOCK_TRANSLATION === "true";
+  console.log("Translation API called, useMock:", useMock);
+
+  if (useMock) {
+    // Mock translation result
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return NextResponse.json({
+      translatedText: `Kung Pao Chicken - $18.90\nMapo Tofu - $14.50\nShredded Potato with Green Pepper - $12.20\nSweet and Sour Pork - $19.80\nSteamed Egg Custard - $8.80`,
+      originalText: `宫保鸡丁 - ¥38\n麻婆豆腐 - ¥28\n青椒土豆丝 - ¥22\n糖醋里脊 - ¥42\n蒸蛋羹 - ¥18`,
+      targetLanguage: "en",
+      confidence: 0.92,
+    });
+  }
+
   try {
     const { text, targetLanguage = "en" } = await request.json();
 
     if (!text) {
+      console.log("No text provided for translation");
       return NextResponse.json({ error: "No text provided" }, { status: 400 });
     }
 
-    // Simulate translation processing delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    console.log("Text received for translation, length:", text.length);
 
-    // Mock translation results
-    const translations: Record<string, string> = {
-      宫保鸡丁: "Kung Pao Chicken",
-      麻婆豆腐: "Mapo Tofu",
-      青椒土豆丝: "Shredded Potato with Green Pepper",
-      糖醋里脊: "Sweet and Sour Pork",
-      蒸蛋羹: "Steamed Egg Custard",
+    // Call Google Translate API
+    const apiKey = process.env.GOOGLE_CLOUD_TRANSLATE_API_KEY;
+    if (!apiKey) {
+      console.log("No Google Cloud Translate API key found");
+      return NextResponse.json(
+        { error: "Translation API key not configured" },
+        { status: 500 }
+      );
+    }
+
+    const translateUrl = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
+
+    const body = {
+      q: text,
+      target: targetLanguage,
+      format: "text",
     };
 
-    const translatedText = text
-      .split("\n")
-      .map((line: string) => {
-        const dishName = line.split(" - ")[0];
-        const price = line.split(" - ")[1];
-        const translated = translations[dishName] || dishName;
-        return price ? `${translated} - ${price}` : translated;
-      })
-      .join("\n");
+    console.log("Sending request to Google Translate API...");
+    const translateRes = await fetch(translateUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
 
+    console.log("Google Translate API response status:", translateRes.status);
+    if (!translateRes.ok) {
+      const errorText = await translateRes.text();
+      console.log("Google Translate API error:", errorText);
+      return NextResponse.json(
+        { error: "Translation failed" },
+        { status: 500 }
+      );
+    }
+
+    const translateData = await translateRes.json();
+    console.log("Google Translate API response received");
+
+    const translatedText =
+      translateData.data?.translations?.[0]?.translatedText || "";
+
+    console.log("Translated text length:", translatedText.length);
     return NextResponse.json({
       translatedText,
       originalText: text,
       targetLanguage,
-      confidence: 0.92,
+      confidence: 1.0,
     });
-  } catch {
+  } catch (error) {
+    console.log("Translation error:", error);
     return NextResponse.json({ error: "Translation failed" }, { status: 500 });
   }
 }

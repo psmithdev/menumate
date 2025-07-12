@@ -21,6 +21,17 @@ import { Switch } from "@/components/ui/switch";
 import Image from "next/image";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import React, { useRef } from "react";
+import { analyzeDish, type DishAnalysis } from "@/utils/dishParser";
+import {
+  preprocessImage,
+  analyzeImageQuality,
+} from "@/utils/imagePreprocessor";
+import { TranslationCache } from "@/utils/translationCache";
+import {
+  detectLanguage,
+  SUPPORTED_LANGUAGES,
+  type Language,
+} from "@/utils/languages";
 
 type Screen =
   | "welcome"
@@ -28,6 +39,7 @@ type Screen =
   | "camera"
   | "processing"
   | "results"
+  | "translate"
   | "dish-detail"
   | "filters";
 
@@ -48,15 +60,40 @@ type Dish = {
   protein: string;
 };
 
+type ParsedDish = {
+  id: string;
+  originalName: string;
+  translatedName?: string;
+  originalPrice: string;
+  translatedPrice?: string;
+  description?: string;
+  tags: string[];
+  isVegetarian: boolean;
+  spiceLevel: number;
+  rating?: number;
+  time?: string;
+  calories?: number;
+  protein?: string;
+  ingredients?: string[];
+};
+
 export default function MenuTranslatorDesign() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-  const [selectedDish, setSelectedDish] = useState<Dish | null>(null);
+  const [selectedDish, setSelectedDish] = useState<ParsedDish | null>(null);
   const [menuImage, setMenuImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string | null>(null);
+  const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [parsedDishes, setParsedDishes] = useState<ParsedDish[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
+  const [targetLanguage, setTargetLanguage] = useState<string>("en");
 
   const mockDishes = [
     {
@@ -127,32 +164,226 @@ export default function MenuTranslatorDesign() {
     },
   ];
 
+  // Enhanced error handling for OCR
   useEffect(() => {
     if (currentScreen === "processing" && menuImage) {
       setIsProcessing(true);
       setProcessingError(null);
+      setRetryCount(0);
 
-      const formData = new FormData();
-      formData.append("image", menuImage);
+      const performOcr = async () => {
+        try {
+          const formData = new FormData();
+          formData.append("image", menuImage);
 
-      fetch("/api/ocr", {
-        method: "POST",
-        body: formData,
-      })
-        .then(async (res) => {
-          if (!res.ok) throw new Error("OCR failed");
+          const res = await fetch("/api/ocr", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(
+              errorData.error || `OCR failed with status ${res.status}`
+            );
+          }
+
           const data = await res.json();
+
+          if (!data.text || data.text.trim().length === 0) {
+            throw new Error(
+              "No text was detected in the image. Please try a clearer photo."
+            );
+          }
+
           setOcrText(data.text);
           setCurrentScreen("results");
-        })
-        .catch((err) => {
-          setProcessingError("Failed to process image. Please try again.");
-        })
-        .finally(() => {
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error ? err.message : "Failed to process image";
+          setProcessingError(errorMessage);
+
+          // Auto-retry for network errors (up to 2 times)
+          if (
+            retryCount < 2 &&
+            (errorMessage.includes("network") || errorMessage.includes("fetch"))
+          ) {
+            setTimeout(() => {
+              setRetryCount((prev) => prev + 1);
+              performOcr();
+            }, 2000);
+          }
+        } finally {
           setIsProcessing(false);
-        });
+        }
+      };
+
+      performOcr();
     }
-  }, [currentScreen, menuImage]);
+  }, [currentScreen, menuImage, retryCount]);
+
+  // Enhanced error handling for translation
+  useEffect(() => {
+    if (currentScreen === "translate" && ocrText) {
+      setIsTranslating(true);
+      setTranslationError(null);
+
+      const performTranslation = async () => {
+        try {
+          // Check cache first
+          const cachedResult = TranslationCache.get(ocrText, targetLanguage);
+          if (cachedResult) {
+            console.log("Using cached translation");
+            setTranslatedText(cachedResult);
+            setIsTranslating(false);
+            return;
+          }
+
+          const res = await fetch("/api/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: ocrText, targetLanguage }),
+          });
+
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(
+              errorData.error || `Translation failed with status ${res.status}`
+            );
+          }
+
+          const data = await res.json();
+
+          if (!data.translatedText || data.translatedText.trim().length === 0) {
+            throw new Error(
+              "Translation returned empty result. Please try again."
+            );
+          }
+
+          // Cache the translation
+          TranslationCache.set(
+            ocrText,
+            data.translatedText,
+            targetLanguage,
+            data.confidence || 1.0
+          );
+
+          setTranslatedText(data.translatedText);
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error ? err.message : "Failed to translate text";
+          setTranslationError(errorMessage);
+        } finally {
+          setIsTranslating(false);
+        }
+      };
+
+      performTranslation();
+    }
+  }, [currentScreen, ocrText, targetLanguage]);
+
+  // Function to parse OCR text into structured dishes
+  const parseOcrText = (text: string): ParsedDish[] => {
+    const lines = text.split("\n").filter((line) => line.trim());
+    const dishes: ParsedDish[] = [];
+
+    lines.forEach((line, index) => {
+      // Try to extract dish name and price
+      const priceMatch = line.match(/[¥$€£]\s*(\d+(?:\.\d{2})?)/);
+      const currencyMatch = line.match(/[¥$€£]/);
+
+      if (priceMatch) {
+        const price = priceMatch[0];
+        const name = line.replace(price, "").trim();
+
+        if (name) {
+          // Use AI analysis to enhance the dish data
+          const analysis = analyzeDish(name, "chinese"); // Default to Chinese, can be enhanced
+
+          dishes.push({
+            id: `dish-${index}`,
+            originalName: name,
+            originalPrice: price,
+            translatedName: undefined, // Will be filled by translation
+            translatedPrice: undefined, // Will be filled by translation
+            description: `Delicious ${name} prepared with authentic ingredients`,
+            tags: analysis.tags,
+            isVegetarian: analysis.isVegetarian,
+            spiceLevel: analysis.spiceLevel,
+            rating: 4.5, // Default
+            time: analysis.cookingTime,
+            calories: analysis.estimatedCalories,
+            protein: analysis.estimatedProtein,
+            ingredients: analysis.ingredients,
+          });
+        }
+      } else if (currencyMatch) {
+        // Fallback: just extract the line as a dish name
+        const analysis = analyzeDish(line.trim(), "chinese");
+
+        dishes.push({
+          id: `dish-${index}`,
+          originalName: line.trim(),
+          originalPrice: "Price not detected",
+          description: `Delicious ${line.trim()} prepared with authentic ingredients`,
+          tags: analysis.tags,
+          isVegetarian: analysis.isVegetarian,
+          spiceLevel: analysis.spiceLevel,
+          rating: 4.5,
+          time: analysis.cookingTime,
+          calories: analysis.estimatedCalories,
+          protein: analysis.estimatedProtein,
+          ingredients: analysis.ingredients,
+        });
+      }
+    });
+
+    return dishes;
+  };
+
+  // Update parsed dishes when OCR text changes
+  useEffect(() => {
+    if (ocrText) {
+      // Detect language from OCR text
+      const detected = detectLanguage(ocrText);
+      setDetectedLanguage(detected);
+
+      // Set target language to English by default
+      setTargetLanguage("en");
+
+      const dishes = parseOcrText(ocrText);
+      setParsedDishes(dishes);
+    }
+  }, [ocrText]);
+
+  // Update dishes when translation is complete
+  useEffect(() => {
+    if (translatedText && parsedDishes.length > 0) {
+      const translatedLines = translatedText
+        .split("\n")
+        .filter((line) => line.trim());
+      const updatedDishes = parsedDishes.map((dish, index) => {
+        const translatedLine = translatedLines[index];
+        if (translatedLine) {
+          const priceMatch = translatedLine.match(/[¥$€£]\s*(\d+(?:\.\d{2})?)/);
+          const translatedName = priceMatch
+            ? translatedLine.replace(priceMatch[0], "").trim()
+            : translatedLine.trim();
+          const translatedPrice = priceMatch
+            ? priceMatch[0]
+            : dish.originalPrice;
+
+          return {
+            ...dish,
+            translatedName,
+            translatedPrice,
+          };
+        }
+        return dish;
+      });
+      setParsedDishes(updatedDishes);
+    }
+  }, [translatedText]);
 
   if (currentScreen === "welcome") {
     return (
@@ -226,22 +457,51 @@ export default function MenuTranslatorDesign() {
 
   if (currentScreen === "camera") {
     // File input ref and handler
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
+
       // Validate file type
       if (!file.type.startsWith("image/")) {
         setCameraError("Please select a valid image file.");
+        setPreviewUrl(null);
         return;
       }
+
       // Validate file size (e.g., max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         setCameraError("Image must be less than 5MB.");
+        setPreviewUrl(null);
         return;
       }
+
       setCameraError(null);
-      setMenuImage(file);
-      setCurrentScreen("processing");
+      setPreviewUrl(URL.createObjectURL(file));
+
+      // Analyze image quality and preprocess if needed
+      try {
+        const quality = await analyzeImageQuality(file);
+        let processedFile = file;
+
+        if (quality.needsPreprocessing) {
+          console.log("Image needs preprocessing:", quality);
+          processedFile = await preprocessImage(file, {
+            contrast: quality.isLowContrast ? 1.3 : 1.1,
+            brightness: quality.isDark ? 1.2 : 1.0,
+            sharpen: quality.isBlurry,
+            denoise: true,
+            autoRotate: true,
+          });
+        }
+
+        setMenuImage(processedFile);
+        setCurrentScreen("processing");
+      } catch (error) {
+        console.error("Image preprocessing failed:", error);
+        // Fallback to original file
+        setMenuImage(file);
+        setCurrentScreen("processing");
+      }
     };
 
     const triggerFileInput = () => {
@@ -464,7 +724,10 @@ export default function MenuTranslatorDesign() {
                   Menu Discovered
                 </h1>
                 <p className="text-gray-600 text-sm">
-                  8 dishes found • Golden Dragon Restaurant
+                  {ocrText
+                    ? `${ocrText.split("\n").length} lines extracted`
+                    : "Processing..."}{" "}
+                  • Golden Dragon Restaurant
                 </p>
               </div>
               <Button
@@ -501,9 +764,38 @@ export default function MenuTranslatorDesign() {
           </div>
         </div>
 
+        {/* OCR Results Section */}
+        {ocrText && (
+          <div className="p-4 bg-white border-b border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Globe className="w-5 h-5 text-blue-500" />
+                Extracted Text
+              </h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentScreen("translate")}
+                className="text-blue-600 border-blue-200 hover:bg-blue-50"
+              >
+                Translate →
+              </Button>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                {ocrText}
+              </pre>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              This is the raw text extracted from your menu image. Click
+              "Translate" to convert it to English.
+            </p>
+          </div>
+        )}
+
         {/* Dishes Grid */}
         <div className="p-4 space-y-4">
-          {mockDishes.map((dish) => (
+          {parsedDishes.map((dish) => (
             <Card
               key={dish.id}
               className="overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer"
@@ -516,8 +808,8 @@ export default function MenuTranslatorDesign() {
                 {/* Image */}
                 <div className="relative w-24 h-24 flex-shrink-0">
                   <Image
-                    src={dish.image || "/placeholder.svg"}
-                    alt={dish.name}
+                    src={"/placeholder.svg"}
+                    alt={dish.originalName}
                     fill
                     className="object-cover"
                   />
@@ -531,14 +823,16 @@ export default function MenuTranslatorDesign() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <h3 className="font-semibold text-gray-900 leading-tight">
-                        {dish.name}
+                        {dish.translatedName || dish.originalName}
                       </h3>
                       <p className="text-xs text-gray-500 mt-1">
                         {dish.originalName}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-orange-600">{dish.price}</p>
+                      <p className="font-bold text-orange-600">
+                        {dish.translatedPrice || dish.originalPrice}
+                      </p>
                       <div className="flex items-center gap-1 mt-1">
                         <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                         <span className="text-xs text-gray-600">
@@ -600,138 +894,259 @@ export default function MenuTranslatorDesign() {
     );
   }
 
+  if (currentScreen === "translate") {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-10">
+          <div className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Translation
+                </h1>
+                <p className="text-gray-600 text-sm">
+                  Converting your menu to English
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentScreen("results")}
+                className="rounded-full"
+              >
+                ← Back
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Translation Content */}
+        <div className="p-4 space-y-6">
+          {/* Original Text */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Globe className="w-5 h-5 text-blue-500" />
+              Original Text
+            </h2>
+            <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                {ocrText}
+              </pre>
+            </div>
+          </div>
+
+          {/* Translation Status */}
+          {isTranslating && (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="flex justify-center gap-2 mb-4">
+                  <div
+                    className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"
+                    style={{ animationDelay: "0ms" }}
+                  ></div>
+                  <div
+                    className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"
+                    style={{ animationDelay: "150ms" }}
+                  ></div>
+                  <div
+                    className="w-3 h-3 bg-blue-500 rounded-full animate-bounce"
+                    style={{ animationDelay: "300ms" }}
+                  ></div>
+                </div>
+                <p className="text-gray-600">Translating to English...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Translated Text */}
+          {translatedText && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Globe className="w-5 h-5 text-green-500" />
+                Translated Text
+              </h2>
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                  {translatedText}
+                </pre>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <Button
+                  onClick={() => setCurrentScreen("results")}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Continue to Results
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setTranslatedText(null);
+                    setCurrentScreen("translate");
+                  }}
+                >
+                  Retranslate
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {translationError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-600 text-sm">{translationError}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentScreen("translate")}
+                className="mt-2"
+              >
+                Try Again
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (currentScreen === "dish-detail" && selectedDish) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-10">
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentScreen("results")}
+                className="text-gray-600"
+              >
+                ← Back to Menu
+              </Button>
+              <Button variant="ghost" size="sm" className="text-gray-600">
+                <Heart className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+
         {/* Hero Image */}
         <div className="relative h-80">
           <Image
-            src={selectedDish.image || "/placeholder.svg"}
-            alt={selectedDish.name}
+            src={"/placeholder.svg"}
+            alt={selectedDish.originalName}
             fill
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-
-          {/* Back Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setCurrentScreen("results")}
-            className="absolute top-6 left-4 text-white hover:bg-white/20 rounded-full w-10 h-10 p-0"
-          >
-            ←
-          </Button>
-
-          {/* Favorite Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="absolute top-6 right-4 text-white hover:bg-white/20 rounded-full w-10 h-10 p-0"
-          >
-            <Heart className="w-5 h-5" />
-          </Button>
-
-          {/* Price Badge */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2">
             <span className="font-bold text-orange-600 text-lg">
-              {selectedDish.price}
+              {selectedDish.translatedPrice || selectedDish.originalPrice}
             </span>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-6">
-          {/* Header */}
+        <div className="p-6 bg-white">
           <div className="mb-6">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {selectedDish.name}
+              {selectedDish.translatedName || selectedDish.originalName}
             </h1>
             <p className="text-gray-500 mb-4">{selectedDish.originalName}</p>
 
-            {/* Stats */}
-            <div className="flex items-center gap-6 mb-4">
+            <div className="flex items-center gap-4 mb-4">
               <div className="flex items-center gap-1">
                 <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                <span className="font-semibold">{selectedDish.rating}</span>
-                <span className="text-gray-500 text-sm">(124 reviews)</span>
+                <span className="font-semibold">
+                  {selectedDish.rating || 4.5}
+                </span>
               </div>
               <div className="flex items-center gap-1 text-gray-600">
                 <Clock className="w-4 h-4" />
-                <span className="text-sm">{selectedDish.time}</span>
+                <span>{selectedDish.time || "15 min"}</span>
               </div>
               <div className="flex items-center gap-1">
-                {"🌶️".repeat(selectedDish.spiceLevel)}
+                {"🌶️".repeat(selectedDish.spiceLevel || 0)}
                 {selectedDish.spiceLevel === 0 && (
                   <span className="text-gray-400 text-sm">Mild</span>
                 )}
               </div>
             </div>
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {selectedDish.tags.map((tag: string) => (
-                <Badge key={tag} variant="secondary" className="px-3 py-1">
-                  {tag}
-                </Badge>
-              ))}
-              {selectedDish.isVegetarian && (
-                <Badge
-                  variant="outline"
-                  className="px-3 py-1 text-green-600 border-green-200"
-                >
-                  <Leaf className="w-3 h-3 mr-1" />
-                  Vegetarian
-                </Badge>
-              )}
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="mb-6">
-            <h3 className="font-semibold text-gray-900 mb-3">Description</h3>
-            <p className="text-gray-600 leading-relaxed">
-              {selectedDish.description}
+            <p className="text-gray-700 leading-relaxed mb-6">
+              {selectedDish.description ||
+                `Delicious ${selectedDish.originalName} prepared with authentic ingredients.`}
             </p>
           </div>
 
-          {/* Nutrition */}
-          <div className="mb-6">
-            <h3 className="font-semibold text-gray-900 mb-3">Nutrition</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-orange-600">
-                  {selectedDish.calories}
-                </p>
-                <p className="text-sm text-gray-600">Calories</p>
-              </div>
-              <div className="bg-gray-50 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-blue-600">
-                  {selectedDish.protein}
-                </p>
-                <p className="text-sm text-gray-600">Protein</p>
-              </div>
+          {/* Nutrition Info */}
+          <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+            <div>
+              <p className="text-sm text-gray-500">Calories</p>
+              <p className="font-semibold">{selectedDish.calories || 300}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Protein</p>
+              <p className="font-semibold">{selectedDish.protein || "20g"}</p>
             </div>
           </div>
 
           {/* Ingredients */}
-          <div className="mb-8">
-            <h3 className="font-semibold text-gray-900 mb-3">
-              Main Ingredients
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {selectedDish.ingredients.map((ingredient: string) => (
-                <Badge key={ingredient} variant="outline" className="px-3 py-1">
-                  {ingredient}
-                </Badge>
-              ))}
+          {selectedDish.ingredients && selectedDish.ingredients.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Ingredients
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {selectedDish.ingredients.map((ingredient: string) => (
+                  <Badge
+                    key={ingredient}
+                    variant="outline"
+                    className="px-3 py-1"
+                  >
+                    {ingredient}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Action Button */}
-          <Button className="w-full h-14 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl text-lg font-semibold">
-            Add to Favorites
-          </Button>
+          {/* Tags */}
+          {selectedDish.tags && selectedDish.tags.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Tags</h3>
+              <div className="flex flex-wrap gap-2">
+                {selectedDish.tags.map((tag: string) => (
+                  <Badge key={tag} variant="secondary" className="px-3 py-1">
+                    {tag}
+                  </Badge>
+                ))}
+                {selectedDish.isVegetarian && (
+                  <Badge
+                    variant="outline"
+                    className="px-3 py-1 text-green-600 border-green-200"
+                  >
+                    <Leaf className="w-3 h-3 mr-1" />
+                    Vegetarian
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="p-6 bg-white border-t border-gray-200">
+          <div className="flex gap-3">
+            <Button className="flex-1 bg-orange-500 hover:bg-orange-600">
+              Add to Order
+            </Button>
+            <Button variant="outline" className="flex-1">
+              Share Dish
+            </Button>
+          </div>
         </div>
       </div>
     );

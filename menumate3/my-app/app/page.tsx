@@ -289,85 +289,90 @@ export default function MenuTranslatorDesign() {
     text: string,
     detectedLanguage: string = "en"
   ): ParsedDish[] => {
-    const lines = text.split("\n").filter((line) => line.trim());
+    const lines = text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
     const dishes: ParsedDish[] = [];
 
-    console.log("Parsing OCR text:", text);
-    console.log("Number of lines:", lines.length);
+    // Regex for various price formats
+    const priceRegex =
+      /(?:[฿$€£])?\s?(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?/i;
+    const priceAtEndRegex =
+      /(.+?)\s{1,3}(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?$/i;
+    const justNumberRegex = /^\d{1,5}(?:[.,]\d{2})?$/;
+
+    let lastDish: ParsedDish | null = null;
 
     lines.forEach((line, index) => {
-      console.log(`Processing line ${index}:`, line);
-
-      // More flexible price detection - look for various currency symbols and number patterns
-      const priceMatch = line.match(
-        /[¥$€£฿₿₽₩₪₨₦₡₱₲₴₵₸₺₻₼₽₾₿]\s*(\d+(?:\.\d{2})?)/
-      );
-      const numberMatch = line.match(
-        /(\d+(?:\.\d{2})?)\s*[฿₿₽₩₪₨₦₡₱₲₴₵₸₺₻₼₽₾₿]/
-      );
-      const justNumberMatch = line.match(/(\d+(?:\.\d{2})?)/);
-
-      let price = "";
-      let name = "";
-
-      if (priceMatch) {
-        // Found currency symbol followed by number
-        price = priceMatch[0];
-        name = line.replace(price, "").trim();
-        console.log(`Found price with currency: ${price}, name: ${name}`);
-      } else if (numberMatch) {
-        // Found number followed by currency symbol
-        price = numberMatch[0];
-        name = line.replace(price, "").trim();
-        console.log(`Found price with number first: ${price}, name: ${name}`);
-      } else if (justNumberMatch && line.length > 5) {
-        // Found just a number, but only if the line is long enough to be a dish
-        const number = justNumberMatch[0];
-        name = line.replace(number, "").trim();
-        // Only treat as price if it's at the end of the line
-        if (line.trim().endsWith(number)) {
-          price = number;
-          console.log(`Found price at end: ${price}, name: ${name}`);
-        } else {
-          // Just treat the whole line as a dish name
-          name = line.trim();
-          price = "Price not detected";
-          console.log(`Treating as dish name: ${name}`);
-        }
-      } else {
-        // No price found, treat as dish name
-        name = line.trim();
-        price = "Price not detected";
-        console.log(`No price found, treating as dish: ${name}`);
-      }
-
-      // Only create dish if we have a meaningful name
-      if (name && name.length > 1) {
-        // Use AI analysis to enhance the dish data with detected language
+      // 1. Price at end of line (with or without currency/baht)
+      let match = priceAtEndRegex.exec(line);
+      if (match) {
+        const name = match[1].trim();
+        const price = match[2] + (line.includes("บาท") ? " บาท" : "");
         const analysis = analyzeDish(name, detectedLanguage);
-
-        dishes.push({
+        const dish: ParsedDish = {
           id: `dish-${index}`,
           originalName: name,
           originalPrice: price,
-          translatedName: undefined, // Will be filled by translation
-          translatedPrice: undefined, // Will be filled by translation
+          translatedName: undefined,
+          translatedPrice: undefined,
           description: `Delicious ${name} prepared with authentic ingredients`,
           tags: analysis.tags,
           isVegetarian: analysis.isVegetarian,
           spiceLevel: analysis.spiceLevel,
-          rating: 4.5, // Default
+          rating: 4.5,
           time: analysis.cookingTime,
           calories: analysis.estimatedCalories,
           protein: analysis.estimatedProtein,
           ingredients: analysis.ingredients,
-        });
-
-        console.log(`Created dish: ${name} - ${price}`);
+        };
+        dishes.push(dish);
+        lastDish = dish;
+        return;
       }
+
+      // 2. Price at start of line (rare, but possible)
+      match = priceRegex.exec(line);
+      if (match && line.startsWith(match[0])) {
+        // If previous dish exists, assign price to it
+        if (lastDish && lastDish.originalPrice === "Price not detected") {
+          lastDish.originalPrice =
+            match[1] + (line.includes("บาท") ? " บาท" : "");
+        }
+        return;
+      }
+
+      // 3. Line is just a number (likely a price for previous dish)
+      if (justNumberRegex.test(line)) {
+        if (lastDish && lastDish.originalPrice === "Price not detected") {
+          lastDish.originalPrice = line;
+        }
+        return;
+      }
+
+      // 4. Line contains only a name (or price not detected)
+      const analysis = analyzeDish(line, detectedLanguage);
+      const dish: ParsedDish = {
+        id: `dish-${index}`,
+        originalName: line,
+        originalPrice: "Price not detected",
+        translatedName: undefined,
+        translatedPrice: undefined,
+        description: `Delicious ${line} prepared with authentic ingredients`,
+        tags: analysis.tags,
+        isVegetarian: analysis.isVegetarian,
+        spiceLevel: analysis.spiceLevel,
+        rating: 4.5,
+        time: analysis.cookingTime,
+        calories: analysis.estimatedCalories,
+        protein: analysis.estimatedProtein,
+        ingredients: analysis.ingredients,
+      };
+      dishes.push(dish);
+      lastDish = dish;
     });
 
-    console.log(`Total dishes created: ${dishes.length}`);
     return dishes;
   };
 

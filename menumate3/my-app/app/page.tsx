@@ -14,6 +14,7 @@ import {
   Leaf,
   Flame,
   CheckCircle,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,6 +35,7 @@ import {
   SUPPORTED_LANGUAGES,
   type Language,
 } from "@/utils/languages";
+import { QRCodeSection } from "@/components/QRCodeSection";
 
 type Screen =
   | "welcome"
@@ -43,7 +45,8 @@ type Screen =
   | "results"
   | "translate"
   | "dish-detail"
-  | "filters";
+  | "filters"
+  | "share";
 
 type Dish = {
   id: number;
@@ -805,15 +808,27 @@ export default function MenuTranslatorDesign() {
                   )}
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentScreen("filters")}
-                className="rounded-full"
-              >
-                <Filter className="w-4 h-4 mr-2" />
-                Filter
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentScreen("share")}
+                  className="rounded-full"
+                  disabled={parsedDishes.length === 0}
+                >
+                  <Share2 className="w-4 h-4 mr-2" />
+                  Share
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentScreen("filters")}
+                  className="rounded-full"
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filter
+                </Button>
+              </div>
             </div>
 
             {/* Quick Filters */}
@@ -934,12 +949,11 @@ export default function MenuTranslatorDesign() {
                 <div className="flex">
                   {/* Image */}
                   <div className="relative w-24 h-24 flex-shrink-0">
-                    <Image
-                      src={"/placeholder.svg"}
-                      alt={dish.originalName}
-                      fill
-                      className="object-cover"
-                    />
+                    <div className="w-full h-full bg-gradient-to-br from-orange-100 to-orange-200 rounded-lg flex items-center justify-center">
+                      <span className="text-orange-600 text-xs font-medium">
+                        Menu
+                      </span>
+                    </div>
                     <div className="absolute top-2 right-2">
                       <Heart className="w-4 h-4 text-white/80 hover:text-red-400 cursor-pointer" />
                     </div>
@@ -1434,6 +1448,43 @@ export default function MenuTranslatorDesign() {
           >
             Reset All Filters
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentScreen === "share") {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-10">
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentScreen("results")}
+                className="text-gray-600"
+              >
+                ← Back to Menu
+              </Button>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Share Menu
+              </h1>
+              <div className="w-10"></div> {/* Spacer for centering */}
+            </div>
+          </div>
+        </div>
+
+        {/* QR Code Section */}
+        <div className="p-4">
+          <QRCodeSection
+            dishes={parsedDishes}
+            originalText={ocrText || ""}
+            translatedText={translatedText || ""}
+            detectedLanguage={detectedLanguage}
+            restaurantName="Restaurant"
+          />
         </div>
       </div>
     );

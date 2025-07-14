@@ -4,6 +4,7 @@ import { Star, Clock } from "lucide-react";
 import Image from "next/image";
 import { useCart } from "./CartContext";
 import type { ParsedDish } from "../types/menu";
+import { getDishImage } from "../utils/dishImage";
 
 interface DishCardProps {
   dish: ParsedDish & {
@@ -21,7 +22,7 @@ export function DishCard({ dish }: DishCardProps) {
     <Card className="overflow-hidden">
       <div className="relative">
         <Image
-          src={dish.image || "/placeholder.svg"}
+          src={getDishImage(dish)}
           alt={dish.translatedName || dish.originalName}
           width={400}
           height={120}

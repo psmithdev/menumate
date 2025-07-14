@@ -36,6 +36,8 @@ import {
   type Language,
 } from "@/utils/languages";
 import { QRCodeSection } from "@/components/QRCodeSection";
+import { CartButton } from "@/components/CartButton";
+import { DishCard } from "@/components/dish-card";
 
 type Screen =
   | "welcome"
@@ -937,105 +939,13 @@ export default function MenuTranslatorDesign() {
               )}
             </div>
           ) : (
-            parsedDishes.map((dish) => (
-              <Card
-                key={dish.id}
-                className="overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer"
-                onClick={() => {
-                  setSelectedDish(dish);
-                  setCurrentScreen("dish-detail");
-                }}
-              >
-                <div className="flex">
-                  {/* Image */}
-                  <div className="relative w-24 h-24 flex-shrink-0">
-                    <div className="w-full h-full bg-gradient-to-br from-orange-100 to-orange-200 rounded-lg flex items-center justify-center">
-                      <span className="text-orange-600 text-xs font-medium">
-                        Menu
-                      </span>
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <Heart className="w-4 h-4 text-white/80 hover:text-red-400 cursor-pointer" />
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 p-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 leading-tight">
-                          {dish.translatedName || dish.originalName}
-                        </h3>
-                        {dish.translatedName &&
-                          dish.translatedName !== dish.originalName && (
-                            <p className="text-xs text-gray-500 mt-1 italic">
-                              {dish.originalName}
-                            </p>
-                          )}
-                        {!dish.translatedName && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                            <span className="text-xs text-yellow-600">
-                              Pending translation
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-orange-600">
-                          {dish.translatedPrice || dish.originalPrice}
-                        </p>
-                        <div className="flex items-center gap-1 mt-1">
-                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                          <span className="text-xs text-gray-600">
-                            {dish.rating}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Tags and Info */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Clock className="w-3 h-3" />
-                        {dish.time}
-                      </div>
-                      <div className="flex items-center gap-1 text-xs">
-                        {"🌶️".repeat(dish.spiceLevel)}
-                        {dish.spiceLevel === 0 && (
-                          <span className="text-gray-400">Mild</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1">
-                      {dish.tags.slice(0, 2).map((tag) => (
-                        <Badge
-                          key={tag}
-                          variant="secondary"
-                          className="text-xs px-2 py-0"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                      {dish.isVegetarian && (
-                        <Badge
-                          variant="outline"
-                          className="text-xs px-2 py-0 text-green-600 border-green-200"
-                        >
-                          Vegetarian
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))
+            parsedDishes.map((dish) => <DishCard key={dish.id} dish={dish} />)
           )}
         </div>
 
-        {/* Floating Action Button */}
-        <div className="fixed bottom-6 right-6">
+        {/* Floating Action Buttons */}
+        <div className="fixed bottom-6 right-6 flex flex-col items-end gap-4 z-50">
+          <CartButton />
           <Button
             onClick={() => setCurrentScreen("camera")}
             className="w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 shadow-2xl"

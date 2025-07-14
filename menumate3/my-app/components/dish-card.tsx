@@ -24,14 +24,14 @@ export function DishCard({ dish }: DishCardProps) {
           src={dish.image || "/placeholder.svg"}
           alt={dish.translatedName || dish.originalName}
           width={400}
-          height={200}
-          className="w-full h-48 object-cover"
+          height={120}
+          className="w-full h-28 object-cover"
         />
         <div className="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-sm font-medium">
           {dish.translatedPrice || dish.originalPrice}
         </div>
       </div>
-      <CardContent className="p-4">
+      <CardContent className="p-2">
         <div className="flex items-start justify-between mb-2">
           <div>
             <h3 className="font-semibold text-lg">
@@ -47,9 +47,11 @@ export function DishCard({ dish }: DishCardProps) {
           )}
         </div>
 
-        <p className="text-gray-600 text-sm mb-3">{dish.description}</p>
+        <p className="text-gray-600 text-xs mb-2 line-clamp-2">
+          {dish.description}
+        </p>
 
-        <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
+        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
           {dish.prepTime && (
             <div className="flex items-center">
               <Clock className="w-3 h-3 mr-1" />
@@ -61,7 +63,7 @@ export function DishCard({ dish }: DishCardProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1 mb-3">
+        <div className="flex flex-wrap gap-1 mb-2">
           {dish.tags.map((tag) => (
             <Badge key={tag} variant="secondary" className="text-xs">
               {tag}

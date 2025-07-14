@@ -918,7 +918,7 @@ export default function MenuTranslatorDesign() {
         )}
 
         {/* Dishes Grid */}
-        <div className="p-4 space-y-4">
+        <div className="p-4">
           {parsedDishes.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500 mb-4">
@@ -939,7 +939,11 @@ export default function MenuTranslatorDesign() {
               )}
             </div>
           ) : (
-            parsedDishes.map((dish) => <DishCard key={dish.id} dish={dish} />)
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {parsedDishes.map((dish) => (
+                <DishCard key={dish.id} dish={dish} />
+              ))}
+            </div>
           )}
         </div>
 

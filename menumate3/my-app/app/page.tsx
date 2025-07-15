@@ -216,12 +216,44 @@ export default function MenuTranslatorDesign() {
     // Use enhanced Thai price parsing for Thai language or fallback to legacy parsing
     const isThaiLanguage = detectedLanguage === "th" || detectedLanguage === "thai";
     
+    // Additional filtering for Thai menus to remove common non-dish lines
+    let filteredLines = lines;
+    if (isThaiLanguage) {
+      filteredLines = lines.filter((line, index) => {
+        // Skip lines that are likely headers/footers
+        if (index === 0 && line.match(/(?:ร้าน|restaurant|menu|เมนู)/i)) {
+          return false;
+        }
+        
+        // Skip lines that are just contact info or addresses
+        if (line.match(/(?:tel|phone|โทร|address|ที่อยู่|facebook|line|www|http)/i)) {
+          return false;
+        }
+        
+        // Skip lines that are just times or dates
+        if (line.match(/^\d{1,2}[:.-]\d{2}|(?:am|pm|โมง|open|close|เปิด|ปิด)$/i)) {
+          return false;
+        }
+        
+        // Skip very short lines that are likely not dishes
+        if (line.length < 4) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+    
     if (isThaiLanguage) {
       // Enhanced Thai price parsing
-      lines.forEach((line, index) => {
+      console.log("Filtered lines for Thai parsing:", filteredLines);
+      
+      filteredLines.forEach((line, index) => {
         const parsedLine = parseThaiMenuLine(line);
+        console.log(`Line ${index}: "${line}" -> isDish: ${parsedLine.isDish}, isValid: ${parsedLine.isValid}, dishName: "${parsedLine.dishName}"`);
         
-        if (parsedLine.isValid && parsedLine.dishName) {
+        // Only process lines that are identified as dishes
+        if (parsedLine.isDish && parsedLine.dishName) {
           const analysis = analyzeDish(parsedLine.dishName, detectedLanguage);
           
           // Handle multiple sizes by creating separate dishes or combining prices

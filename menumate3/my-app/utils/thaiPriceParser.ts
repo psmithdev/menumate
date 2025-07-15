@@ -11,6 +11,7 @@ export interface ThaiMenuLine {
   dishName: string;
   prices: ParsedPrice[];
   isValid: boolean;
+  isDish: boolean; // New field to indicate if this is actually a dish
 }
 
 // Thai size indicators (both Thai and transliterated)
@@ -29,6 +30,75 @@ const CURRENCY_PATTERNS = {
   euro: /(?:€|EUR|euro|ยูโร)/i,
   pound: /(?:£|GBP|pound|ปอนด์)/i
 };
+
+// Patterns to identify non-dish items (restaurant names, headers, categories, etc.)
+const NON_DISH_PATTERNS = {
+  // Restaurant names and headers
+  restaurantNames: /(?:ร้าน|restaurant|cafe|coffee|shop|store|house|kitchen|food|court|center|market|plaza|mall|hall|อาหาร|ร้านอาหาร|ภัตตาคาร|โรงแรม|hotel)/i,
+  
+  // Menu categories and headers
+  categories: /(?:menu|เมนู|รายการ|หมวด|ประเภท|category|section|appetizer|main|course|dessert|drink|beverage|soup|salad|rice|noodle|curry|stir|fried|grilled|steamed|เครื่องดื่ม|น้ำ|ข้าว|ก๋วยเตี๋ยว|แกง|ผัด|ทอด|ย่าง|นึ่ง|อบ|ต้ม)/i,
+  
+  // Size labels only (without dish names)
+  sizeLabelsOnly: /^(?:เล็ก|กลาง|ใหญ่|ขนาดเล็ก|ขนาดกลาง|ขนาดใหญ่|S|M|L|small|medium|large|regular|normal|special|jumbo|จัมโบ้|พิเศษ|ปกติ|ธรรมดา)(?:\s*[\/\-\s]\s*(?:เล็ก|กลาง|ใหญ่|ขนาดเล็ก|ขนาดกลาง|ขนาดใหญ่|S|M|L|small|medium|large|regular|normal|special|jumbo|จัมโบ้|พิเศษ|ปกติ|ธรรมดา))*\s*$/i,
+  
+  // Time indicators
+  timeOnly: /^(?:\d{1,2}:\d{2}|\d{1,2}\s*(?:am|pm|AM|PM|โมง|นาฬิกา|ชั่วโมง|นาที))\s*$/i,
+  
+  // Price lists without dish names
+  priceListOnly: /^(?:\d+(?:[.,]\d{2})?\s*(?:บาท|฿|\$|€|£|¥)?(?:\s*[\/\-\s]\s*\d+(?:[.,]\d{2})?\s*(?:บาท|฿|\$|€|£|¥)?)*)\s*$/i,
+  
+  // Address and contact info
+  contactInfo: /(?:tel|phone|fax|email|address|location|ที่อยู่|โทร|แฟกซ์|อีเมล|สถานที่|www|http|facebook|line|ig|instagram)/i,
+  
+  // Common non-food words
+  nonFood: /(?:welcome|สวัสดี|ยินดีต้อนรับ|thank|you|ขอบคุณ|service|charge|tax|vat|ภาษี|ค่าบริการ|delivery|จัดส่ง|takeaway|กลับบ้าน|open|close|เปิด|ปิด|monday|tuesday|wednesday|thursday|friday|saturday|sunday|วันจันทร์|วันอังคาร|วันพุธ|วันพฤหัสบดี|วันศุกร์|วันเสาร์|วันอาทิตย์)/i,
+  
+  // Very short or single character lines
+  tooShort: /^.{1,2}$/,
+  
+  // Only numbers or symbols
+  numbersSymbolsOnly: /^[\d\s\-\+\*\/\(\)\.,:;!@#$%^&*=\[\]{}|\\<>?~`'"]*$/,
+  
+  // Promotional text
+  promotional: /(?:promotion|โปรโมชั่น|discount|ส่วนลด|special|offer|free|ฟรี|new|ใหม่|hot|popular|recommended|แนะนำ|hit|best|seller|top|favorite|โปรด)/i
+};
+
+// Function to check if a line is likely to be a dish
+function isDishLine(text: string): boolean {
+  const trimmed = text.trim();
+  
+  // Check against non-dish patterns
+  for (const pattern of Object.values(NON_DISH_PATTERNS)) {
+    if (pattern.test(trimmed)) {
+      return false;
+    }
+  }
+  
+  // Must have some alphabetic characters (not just numbers/symbols)
+  if (!/[a-zA-Zก-๙]/.test(trimmed)) {
+    return false;
+  }
+  
+  // Must have reasonable length (between 3-100 characters)
+  if (trimmed.length < 3 || trimmed.length > 100) {
+    return false;
+  }
+  
+  // Should not be just size indicators
+  const sizeWords = trimmed.split(/\s+/);
+  const allSizeWords = sizeWords.every(word => {
+    return Object.values(THAI_SIZE_INDICATORS).flat().some(size => 
+      word.toLowerCase().includes(size.toLowerCase())
+    );
+  });
+  
+  if (allSizeWords) {
+    return false;
+  }
+  
+  return true;
+}
 
 // Enhanced price regex patterns for Thai menus
 const PRICE_PATTERNS = {
@@ -132,7 +202,20 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
     return {
       dishName: '',
       prices: [],
-      isValid: false
+      isValid: false,
+      isDish: false
+    };
+  }
+  
+  // Check if this line is likely to be a dish
+  const isDish = isDishLine(trimmedLine);
+  
+  if (!isDish) {
+    return {
+      dishName: trimmedLine,
+      prices: [],
+      isValid: false,
+      isDish: false
     };
   }
   
@@ -156,7 +239,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
       return {
         dishName,
         prices: prices.map(p => ({ ...p, allSizes: prices })),
-        isValid: true
+        isValid: true,
+        isDish: true
       };
     }
   }
@@ -173,7 +257,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
       return {
         dishName,
         prices: prices.map(p => ({ ...p, allSizes: prices })),
-        isValid: true
+        isValid: true,
+        isDish: true
       };
     }
   }
@@ -194,7 +279,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
         size: normalizeSize(sizeText),
         isMultipleSize: false
       }],
-      isValid: true
+      isValid: true,
+      isDish: true
     };
   }
   
@@ -214,7 +300,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
         size: normalizeSize(sizeText),
         isMultipleSize: false
       }],
-      isValid: true
+      isValid: true,
+      isDish: true
     };
   }
   
@@ -233,7 +320,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
         currency,
         isMultipleSize: false
       }],
-      isValid: true
+      isValid: true,
+      isDish: true
     };
   }
   
@@ -251,7 +339,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
         currency,
         isMultipleSize: false
       }],
-      isValid: true
+      isValid: true,
+      isDish: true
     };
   }
   
@@ -269,7 +358,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
         currency,
         isMultipleSize: false
       }],
-      isValid: true
+      isValid: true,
+      isDish: true
     };
   }
   
@@ -277,7 +367,8 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
   return {
     dishName: trimmedLine,
     prices: [],
-    isValid: false
+    isValid: false,
+    isDish: true
   };
 }
 

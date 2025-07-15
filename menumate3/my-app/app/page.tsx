@@ -17,13 +17,12 @@ import {
   Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import Image from "next/image";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import React, { useRef } from "react";
-import { analyzeDish, type DishAnalysis } from "@/utils/dishParser";
+import { analyzeDish } from "@/utils/dishParser";
 import {
   preprocessImage,
   analyzeImageQuality,
@@ -32,9 +31,8 @@ import { TranslationCache } from "@/utils/translationCache";
 import {
   detectLanguage,
   getLanguageName,
-  SUPPORTED_LANGUAGES,
-  type Language,
 } from "@/utils/languages";
+import { parseThaiMenuLine, formatAllPrices } from "@/utils/thaiPriceParser";
 import { QRCodeSection } from "@/components/QRCodeSection";
 import { CartButton } from "@/components/CartButton";
 import { DishCard } from "@/components/dish-card";
@@ -50,22 +48,6 @@ type Screen =
   | "filters"
   | "share";
 
-type Dish = {
-  id: number;
-  name: string;
-  originalName: string;
-  price: string;
-  image: string;
-  rating: number;
-  time: string;
-  spiceLevel: number;
-  tags: string[];
-  isVegetarian: boolean;
-  description: string;
-  ingredients: string[];
-  calories: number;
-  protein: string;
-};
 
 type ParsedDish = {
   id: string;
@@ -86,7 +68,7 @@ type ParsedDish = {
 
 export default function MenuTranslatorDesign() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-  const [selectedDish, setSelectedDish] = useState<ParsedDish | null>(null);
+  const [selectedDish] = useState<ParsedDish | null>(null);
   const [menuImage, setMenuImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -98,78 +80,9 @@ export default function MenuTranslatorDesign() {
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [parsedDishes, setParsedDishes] = useState<ParsedDish[]>([]);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [, setPreviewUrl] = useState<string | null>(null);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [targetLanguage, setTargetLanguage] = useState<string>("en");
-
-  const mockDishes = [
-    {
-      id: 1,
-      name: "Kung Pao Chicken",
-      originalName: "宫保鸡丁",
-      price: "$18.90",
-      image: "/placeholder.svg?height=200&width=300",
-      rating: 4.8,
-      time: "15 min",
-      spiceLevel: 3,
-      tags: ["Spicy", "Chicken", "Peanuts"],
-      isVegetarian: false,
-      description:
-        "Tender chicken cubes with roasted peanuts in a savory and slightly sweet sauce with dried chilies.",
-      ingredients: [
-        "Chicken",
-        "Peanuts",
-        "Sichuan Peppercorns",
-        "Dried Chilies",
-      ],
-      calories: 420,
-      protein: "28g",
-    },
-    {
-      id: 2,
-      name: "Mapo Tofu",
-      originalName: "麻婆豆腐",
-      price: "$14.50",
-      image: "/placeholder.svg?height=200&width=300",
-      rating: 4.6,
-      time: "12 min",
-      spiceLevel: 4,
-      tags: ["Spicy", "Tofu", "Sichuan"],
-      isVegetarian: true,
-      description:
-        "Silky tofu in a fiery Sichuan sauce with ground pork and fermented black beans.",
-      ingredients: [
-        "Tofu",
-        "Ground Pork",
-        "Sichuan Peppercorns",
-        "Doubanjiang",
-      ],
-      calories: 280,
-      protein: "18g",
-    },
-    {
-      id: 3,
-      name: "Sweet & Sour Pork",
-      originalName: "糖醋里脊",
-      price: "$19.80",
-      image: "/placeholder.svg?height=200&width=300",
-      rating: 4.4,
-      time: "18 min",
-      spiceLevel: 0,
-      tags: ["Sweet", "Crispy", "Pork"],
-      isVegetarian: false,
-      description:
-        "Crispy pork pieces coated in a glossy sweet and tangy sauce with bell peppers.",
-      ingredients: [
-        "Pork Tenderloin",
-        "Bell Peppers",
-        "Pineapple",
-        "Sweet & Sour Sauce",
-      ],
-      calories: 520,
-      protein: "32g",
-    },
-  ];
 
   // Enhanced error handling for OCR
   useEffect(() => {
@@ -300,29 +213,145 @@ export default function MenuTranslatorDesign() {
       .filter((line) => line.length > 0);
     const dishes: ParsedDish[] = [];
 
-    // Regex for various price formats
-    const priceRegex =
-      /(?:[฿$€£])?\s?(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?/i;
-    const priceAtEndRegex =
-      /(.+?)\s{1,3}(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?$/i;
-    const justNumberRegex = /^\d{1,5}(?:[.,]\d{2})?$/;
+    // Use enhanced Thai price parsing for Thai language or fallback to legacy parsing
+    const isThaiLanguage = detectedLanguage === "th" || detectedLanguage === "thai";
+    
+    if (isThaiLanguage) {
+      // Enhanced Thai price parsing
+      lines.forEach((line, index) => {
+        const parsedLine = parseThaiMenuLine(line);
+        
+        if (parsedLine.isValid && parsedLine.dishName) {
+          const analysis = analyzeDish(parsedLine.dishName, detectedLanguage);
+          
+          // Handle multiple sizes by creating separate dishes or combining prices
+          if (parsedLine.prices.length > 1) {
+            // Create a single dish with formatted multi-size pricing
+            const dish: ParsedDish = {
+              id: `dish-${index}`,
+              originalName: parsedLine.dishName,
+              originalPrice: formatAllPrices(parsedLine.prices),
+              translatedName: undefined,
+              translatedPrice: undefined,
+              description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
+              tags: analysis.tags,
+              isVegetarian: analysis.isVegetarian,
+              spiceLevel: analysis.spiceLevel,
+              rating: 4.5,
+              time: analysis.cookingTime,
+              calories: analysis.estimatedCalories,
+              protein: analysis.estimatedProtein,
+              ingredients: analysis.ingredients,
+            };
+            dishes.push(dish);
+          } else if (parsedLine.prices.length === 1) {
+            // Single price dish
+            const dish: ParsedDish = {
+              id: `dish-${index}`,
+              originalName: parsedLine.dishName,
+              originalPrice: parsedLine.prices[0].price,
+              translatedName: undefined,
+              translatedPrice: undefined,
+              description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
+              tags: analysis.tags,
+              isVegetarian: analysis.isVegetarian,
+              spiceLevel: analysis.spiceLevel,
+              rating: 4.5,
+              time: analysis.cookingTime,
+              calories: analysis.estimatedCalories,
+              protein: analysis.estimatedProtein,
+              ingredients: analysis.ingredients,
+            };
+            dishes.push(dish);
+          } else {
+            // No price detected, but valid dish name
+            const analysis = analyzeDish(parsedLine.dishName, detectedLanguage);
+            const dish: ParsedDish = {
+              id: `dish-${index}`,
+              originalName: parsedLine.dishName,
+              originalPrice: "Price not detected",
+              translatedName: undefined,
+              translatedPrice: undefined,
+              description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
+              tags: analysis.tags,
+              isVegetarian: analysis.isVegetarian,
+              spiceLevel: analysis.spiceLevel,
+              rating: 4.5,
+              time: analysis.cookingTime,
+              calories: analysis.estimatedCalories,
+              protein: analysis.estimatedProtein,
+              ingredients: analysis.ingredients,
+            };
+            dishes.push(dish);
+          }
+        }
+      });
+    } else {
+      // Legacy price parsing for non-Thai languages
+      const priceRegex =
+        /(?:[฿$€£])?\s?(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?/i;
+      const priceAtEndRegex =
+        /(.+?)\s{1,3}(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?$/i;
+      const justNumberRegex = /^\d{1,5}(?:[.,]\d{2})?$/;
 
-    let lastDish: ParsedDish | null = null;
+      let lastDish: ParsedDish | null = null;
 
-    lines.forEach((line, index) => {
-      // 1. Price at end of line (with or without currency/baht)
-      let match = priceAtEndRegex.exec(line);
-      if (match) {
-        const name = match[1].trim();
-        const price = match[2] + (line.includes("บาท") ? " บาท" : "");
-        const analysis = analyzeDish(name, detectedLanguage);
+      lines.forEach((line, index) => {
+        // 1. Price at end of line (with or without currency/baht)
+        let match = priceAtEndRegex.exec(line);
+        if (match) {
+          const name = match[1].trim();
+          const price = match[2] + (line.includes("บาท") ? " บาท" : "");
+          const analysis = analyzeDish(name, detectedLanguage);
+          const dish: ParsedDish = {
+            id: `dish-${index}`,
+            originalName: name,
+            originalPrice: price,
+            translatedName: undefined,
+            translatedPrice: undefined,
+            description: `Delicious ${name} prepared with authentic ingredients`,
+            tags: analysis.tags,
+            isVegetarian: analysis.isVegetarian,
+            spiceLevel: analysis.spiceLevel,
+            rating: 4.5,
+            time: analysis.cookingTime,
+            calories: analysis.estimatedCalories,
+            protein: analysis.estimatedProtein,
+            ingredients: analysis.ingredients,
+          };
+          dishes.push(dish);
+          lastDish = dish;
+          return;
+        }
+
+        // 2. Price at start of line (rare, but possible)
+        match = priceRegex.exec(line);
+        if (match && line.startsWith(match[0])) {
+          // If previous dish exists, assign price to it
+          if (lastDish && lastDish.originalPrice === "Price not detected") {
+            lastDish.originalPrice =
+              match[1] + (line.includes("บาท") ? " บาท" : "");
+          }
+          return;
+        }
+
+        // 3. Line is just a number (likely a price for previous dish)
+        if (justNumberRegex.test(line)) {
+          if (lastDish && lastDish.originalPrice === "Price not detected") {
+            lastDish.originalPrice = line;
+          }
+          return;
+        }
+
+        // 4. Line contains only a name (or price not detected)
+        const analysis = analyzeDish(line, detectedLanguage);
         const dish: ParsedDish = {
           id: `dish-${index}`,
-          originalName: name,
-          originalPrice: price,
+          originalName: line,
+          originalPrice: "Price not detected",
           translatedName: undefined,
           translatedPrice: undefined,
-          description: `Delicious ${name} prepared with authentic ingredients`,
+          description: `Delicious ${line} prepared with authentic ingredients`,
           tags: analysis.tags,
           isVegetarian: analysis.isVegetarian,
           spiceLevel: analysis.spiceLevel,
@@ -334,49 +363,8 @@ export default function MenuTranslatorDesign() {
         };
         dishes.push(dish);
         lastDish = dish;
-        return;
-      }
-
-      // 2. Price at start of line (rare, but possible)
-      match = priceRegex.exec(line);
-      if (match && line.startsWith(match[0])) {
-        // If previous dish exists, assign price to it
-        if (lastDish && lastDish.originalPrice === "Price not detected") {
-          lastDish.originalPrice =
-            match[1] + (line.includes("บาท") ? " บาท" : "");
-        }
-        return;
-      }
-
-      // 3. Line is just a number (likely a price for previous dish)
-      if (justNumberRegex.test(line)) {
-        if (lastDish && lastDish.originalPrice === "Price not detected") {
-          lastDish.originalPrice = line;
-        }
-        return;
-      }
-
-      // 4. Line contains only a name (or price not detected)
-      const analysis = analyzeDish(line, detectedLanguage);
-      const dish: ParsedDish = {
-        id: `dish-${index}`,
-        originalName: line,
-        originalPrice: "Price not detected",
-        translatedName: undefined,
-        translatedPrice: undefined,
-        description: `Delicious ${line} prepared with authentic ingredients`,
-        tags: analysis.tags,
-        isVegetarian: analysis.isVegetarian,
-        spiceLevel: analysis.spiceLevel,
-        rating: 4.5,
-        time: analysis.cookingTime,
-        calories: analysis.estimatedCalories,
-        protein: analysis.estimatedProtein,
-        ingredients: analysis.ingredients,
-      };
-      dishes.push(dish);
-      lastDish = dish;
-    });
+      });
+    }
 
     return dishes;
   };

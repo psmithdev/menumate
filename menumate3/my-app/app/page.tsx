@@ -595,32 +595,37 @@ export default function MenuTranslatorDesign() {
 
   // Update dishes when translation is complete
   useEffect(() => {
-    if (translatedText && parsedDishes.length > 0) {
+    if (translatedText) {
       const translatedLines = translatedText
         .split("\n")
         .filter((line) => line.trim());
-      const updatedDishes = parsedDishes.map((dish, index) => {
-        const translatedLine = translatedLines[index];
-        if (translatedLine) {
-          const priceMatch = translatedLine.match(/[¥$€£]\s*(\d+(?:\.\d{2})?)/);
-          const translatedName = priceMatch
-            ? translatedLine.replace(priceMatch[0], "").trim()
-            : translatedLine.trim();
-          const translatedPrice = priceMatch
-            ? priceMatch[0]
-            : dish.originalPrice;
+      
+      // Use functional update to avoid dependency on parsedDishes
+      setParsedDishes(currentDishes => {
+        if (currentDishes.length === 0) return currentDishes;
+        
+        return currentDishes.map((dish, index) => {
+          const translatedLine = translatedLines[index];
+          if (translatedLine) {
+            const priceMatch = translatedLine.match(/[¥$€£]\s*(\d+(?:\.\d{2})?)/);
+            const translatedName = priceMatch
+              ? translatedLine.replace(priceMatch[0], "").trim()
+              : translatedLine.trim();
+            const translatedPrice = priceMatch
+              ? priceMatch[0]
+              : dish.originalPrice;
 
-          return {
-            ...dish,
-            translatedName,
-            translatedPrice,
-          };
-        }
-        return dish;
+            return {
+              ...dish,
+              translatedName,
+              translatedPrice,
+            };
+          }
+          return dish;
+        });
       });
-      setParsedDishes(updatedDishes);
     }
-  }, [translatedText, parsedDishes]);
+  }, [translatedText]);
 
   if (currentScreen === "welcome") {
     return (

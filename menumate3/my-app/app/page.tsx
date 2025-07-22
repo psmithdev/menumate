@@ -101,11 +101,34 @@ export default function MenuTranslatorDesign() {
   // Filtered dishes state
   const [filteredDishes, setFilteredDishes] = useState<ParsedDish[]>([]);
 
-  // Function to extract price number from price string
-  const extractPriceNumber = (priceString: string): number => {
-    const match = priceString.match(/\d+(?:[.,]\d{2})?/);
-    return match ? parseFloat(match[0].replace(',', '.')) : 0;
-  };
+  // Enhanced function to extract price number from price string with multiple currency support
+  const extractPriceNumber = useCallback((priceString: string): number => {
+    if (!priceString || priceString === "Price not detected") return 0;
+    
+    // Enhanced regex to handle various price formats including currencies and Thai baht
+    const priceMatch = priceString.match(/(?:[฿$€£¥₹₽]?\s?)?(\d{1,5}(?:[.,]\d{1,2})?)\s?(?:บาท|baht|dollars?|euros?|pounds?|yen|rupees?|฿|$|€|£|¥|₹|₽)?/i);
+    
+    if (priceMatch) {
+      let price = parseFloat(priceMatch[1].replace(',', '.'));
+      
+      // Convert common currencies to USD equivalent for comparison
+      // These are rough conversions for filter comparison purposes
+      if (priceString.includes('฿') || priceString.includes('บาท') || priceString.includes('baht')) {
+        price = price * 0.029; // THB to USD (approximate)
+      } else if (priceString.includes('¥')) {
+        price = price * 0.007; // JPY to USD (approximate)
+      } else if (priceString.includes('€')) {
+        price = price * 1.1; // EUR to USD (approximate)
+      } else if (priceString.includes('£')) {
+        price = price * 1.27; // GBP to USD (approximate)
+      }
+      // Default assumes USD or treats as USD equivalent
+      
+      return price;
+    }
+    
+    return 0;
+  }, []);
 
   // Function to filter and sort dishes based on current filters
   const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
@@ -129,22 +152,52 @@ export default function MenuTranslatorDesign() {
       return true;
     });
 
-    // Sort the filtered dishes
+    // Sort the filtered dishes with enhanced sorting logic
     return filteredDishes.sort((a, b) => {
       switch (filters.sortBy) {
         case 'rating':
-          return (b.rating || 0) - (a.rating || 0);
+          // Sort by rating, then by name for tie-breaking
+          const ratingDiff = (b.rating || 4.0) - (a.rating || 4.0);
+          return ratingDiff !== 0 ? ratingDiff : a.originalName.localeCompare(b.originalName);
+        
         case 'price':
-          return extractPriceNumber(a.originalPrice) - extractPriceNumber(b.originalPrice);
+          // Sort by price, handling "Price not detected" items by putting them last
+          const priceA = extractPriceNumber(a.originalPrice);
+          const priceB = extractPriceNumber(b.originalPrice);
+          if (priceA === 0 && priceB === 0) return a.originalName.localeCompare(b.originalName);
+          if (priceA === 0) return 1; // Move "Price not detected" to end
+          if (priceB === 0) return -1; // Move "Price not detected" to end
+          return priceA - priceB;
+        
         case 'time':
-          const aTime = parseInt(a.time?.match(/\d+/)?.[0] || '0');
-          const bTime = parseInt(b.time?.match(/\d+/)?.[0] || '0');
-          return aTime - bTime;
-        default: // recommended
-          return (b.rating || 0) - (a.rating || 0);
+          // Sort by preparation time, then by rating
+          const aTime = parseInt(a.time?.match(/\d+/)?.[0] || '15');
+          const bTime = parseInt(b.time?.match(/\d+/)?.[0] || '15');
+          const timeDiff = aTime - bTime;
+          return timeDiff !== 0 ? timeDiff : (b.rating || 4.0) - (a.rating || 4.0);
+        
+        default: // recommended - intelligent sorting based on multiple factors
+          // Sort by a combination of rating, spice level preference, and alphabetical
+          let score = 0;
+          
+          // Factor in rating (higher is better)
+          score += (b.rating || 4.0) - (a.rating || 4.0);
+          
+          // Factor in vegetarian preference if filter is active
+          if (filters.dietary.vegetarian && a.isVegetarian !== b.isVegetarian) {
+            score += a.isVegetarian ? 1 : -1;
+          }
+          
+          // Factor in spice level preference (closer to max preference is better)
+          const spiceDiffA = Math.abs(a.spiceLevel - filters.maxSpiceLevel);
+          const spiceDiffB = Math.abs(b.spiceLevel - filters.maxSpiceLevel);
+          score += (spiceDiffA - spiceDiffB) * 0.1;
+          
+          // Fall back to alphabetical for tie-breaking
+          return score !== 0 ? score : a.originalName.localeCompare(b.originalName);
       }
     });
-  }, [filters]);
+  }, [filters, extractPriceNumber]);
 
   // Update filtered dishes when parsedDishes or filters change
   useEffect(() => {

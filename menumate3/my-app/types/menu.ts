@@ -7,6 +7,10 @@ export type ParsedDish = {
   description?: string;
   tags: string[];
   isVegetarian: boolean;
+  isVegan?: boolean;
+  isGlutenFree?: boolean;
+  isDairyFree?: boolean;
+  isNutFree?: boolean;
   spiceLevel: number;
   rating?: number;
   time?: string;

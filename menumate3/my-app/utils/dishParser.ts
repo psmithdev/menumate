@@ -4,6 +4,8 @@ export interface DishAnalysis {
   isVegetarian: boolean;
   isVegan: boolean;
   isGlutenFree: boolean;
+  isDairyFree: boolean;
+  isNutFree: boolean;
   tags: string[];
   estimatedCalories: number;
   estimatedProtein: string;
@@ -54,26 +56,40 @@ const THAI_INGREDIENTS = [
   "galangal",
 ];
 
-// Spice indicators
+// Spice indicators - Enhanced with more comprehensive patterns
 const SPICE_INDICATORS = {
-  mild: ["mild", "sweet", "sour", "light", "gentle"],
-  medium: ["medium", "moderate", "balanced", "traditional"],
-  hot: ["spicy", "hot", "fiery", "burning", "chili", "pepper", "curry"],
-  very_hot: ["extra spicy", "very hot", "burning hot", "nuclear", "volcano"],
+  mild: ["mild", "sweet", "sour", "light", "gentle", "no spice", "non-spicy", "子供", "子ども"],
+  medium: ["medium", "moderate", "balanced", "traditional", "少し辛い", "微辣", "小辣"],
+  hot: ["spicy", "hot", "fiery", "burning", "chili", "pepper", "curry", "szechuan", "sichuan", "辛い", "中辣", "jalapeño", "habanero", "thai chili", "bird's eye", "sambal", "gochujang"],
+  very_hot: ["extra spicy", "very hot", "burning hot", "nuclear", "volcano", "ghost pepper", "carolina reaper", "scotch bonnet", "超辛い", "大辣", "火辣", "麻辣"],
 };
 
-// Vegetarian indicators
+// Vegetarian indicators - Enhanced
 const VEGETARIAN_INDICATORS = [
-  "vegetarian",
-  "vegan",
-  "tofu",
-  "tempeh",
-  "seitan",
-  "mushroom",
-  "vegetable",
-  "veggie",
-  "plant-based",
-  "meatless",
+  "vegetarian", "vegan", "tofu", "tempeh", "seitan", "mushroom", "vegetable", "veggie", 
+  "plant-based", "meatless", "素", "素食", "菜", "豆腐", "蔬菜", "菇", "eggplant", "aubergine",
+  "spinach", "broccoli", "cabbage", "bean", "lentil", "quinoa", "avocado"
+];
+
+// Dairy ingredients for dairy-free detection
+const DAIRY_INGREDIENTS = [
+  "milk", "cheese", "butter", "cream", "yogurt", "dairy", "lactose", "whey", "casein",
+  "mozzarella", "parmesan", "cheddar", "cottage cheese", "sour cream", "ice cream",
+  "ghee", "buttermilk", "半脂", "全脂", "チーズ", "バター", "クリーム", "ヨーグルト"
+];
+
+// Nut ingredients for nut allergy detection
+const NUT_INGREDIENTS = [
+  "almond", "walnut", "cashew", "peanut", "pecan", "pistachio", "hazelnut", "macadamia",
+  "pine nut", "brazil nut", "chestnut", "nut", "nuts", "アーモンド", "クルミ", "カシューナッツ",
+  "ピーナッツ", "落花生", "坚果", "杏仁", "核桃", "腰果", "花生"
+];
+
+// Gluten ingredients - Enhanced
+const GLUTEN_INGREDIENTS = [
+  "wheat", "flour", "bread", "noodles", "dumpling", "pasta", "ramen", "udon", "soba",
+  "gluten", "barley", "rye", "malt", "seitan", "tempura", "breaded", "batter",
+  "小麦", "麺", "餃子", "パン", "うどん", "ラーメン", "そば", "天ぷら"
 ];
 
 // Meat indicators
@@ -108,10 +124,12 @@ export function analyzeDish(
   // Check dietary restrictions
   const isVegetarian = checkVegetarian(name, ingredients);
   const isVegan = checkVegan(name, ingredients);
-  const isGlutenFree = checkGlutenFree(name);
+  const isGlutenFree = checkGlutenFree(name, ingredients);
+  const isDairyFree = checkDairyFree(name, ingredients);
+  const isNutFree = checkNutFree(name, ingredients);
 
   // Generate tags
-  const tags = generateTags(name, ingredients, spiceLevel, isVegetarian);
+  const tags = generateTags(name, ingredients, spiceLevel, isVegetarian, isVegan, isGlutenFree, isDairyFree, isNutFree);
 
   // Estimate nutrition
   const estimatedCalories = estimateCalories(ingredients, isVegetarian);
@@ -126,6 +144,8 @@ export function analyzeDish(
     isVegetarian,
     isVegan,
     isGlutenFree,
+    isDairyFree,
+    isNutFree,
     tags,
     estimatedCalories,
     estimatedProtein,
@@ -217,23 +237,78 @@ function checkVegan(dishName: string, ingredients: string[]): boolean {
   return !hasNonVegan && checkVegetarian(dishName, ingredients);
 }
 
-function checkGlutenFree(dishName: string): boolean {
+function checkGlutenFree(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Check for gluten-containing ingredients
-  const glutenIngredients = ["wheat", "flour", "bread", "noodles", "dumpling"];
-  const hasGluten = glutenIngredients.some((ingredient) =>
+  // Check for explicit gluten-free marking
+  if (name.includes("gluten-free") || name.includes("gluten free") || name.includes("無麩質")) {
+    return true;
+  }
+
+  // Check for gluten-containing ingredients in name
+  const hasGlutenInName = GLUTEN_INGREDIENTS.some((ingredient) =>
     name.includes(ingredient)
   );
 
-  return !hasGluten;
+  // Check for gluten-containing ingredients in parsed ingredients
+  const hasGlutenInIngredients = ingredients.some((ingredient) =>
+    GLUTEN_INGREDIENTS.some(gluten => ingredient.toLowerCase().includes(gluten))
+  );
+
+  return !hasGlutenInName && !hasGlutenInIngredients;
+}
+
+function checkDairyFree(dishName: string, ingredients: string[]): boolean {
+  const name = dishName.toLowerCase();
+
+  // Check for explicit dairy-free marking
+  if (name.includes("dairy-free") || name.includes("dairy free") || name.includes("無乳製品")) {
+    return true;
+  }
+
+  // Check for dairy ingredients in name
+  const hasDairyInName = DAIRY_INGREDIENTS.some((ingredient) =>
+    name.includes(ingredient)
+  );
+
+  // Check for dairy ingredients in parsed ingredients
+  const hasDairyInIngredients = ingredients.some((ingredient) =>
+    DAIRY_INGREDIENTS.some(dairy => ingredient.toLowerCase().includes(dairy))
+  );
+
+  return !hasDairyInName && !hasDairyInIngredients;
+}
+
+function checkNutFree(dishName: string, ingredients: string[]): boolean {
+  const name = dishName.toLowerCase();
+
+  // Check for explicit nut-free marking
+  if (name.includes("nut-free") || name.includes("nut free") || name.includes("無堅果")) {
+    return true;
+  }
+
+  // Check for nut ingredients in name
+  const hasNutInName = NUT_INGREDIENTS.some((ingredient) =>
+    name.includes(ingredient)
+  );
+
+  // Check for nut ingredients in parsed ingredients
+  const hasNutInIngredients = ingredients.some((ingredient) =>
+    NUT_INGREDIENTS.some(nut => ingredient.toLowerCase().includes(nut))
+  );
+
+  return !hasNutInName && !hasNutInIngredients;
 }
 
 function generateTags(
   dishName: string,
   ingredients: string[],
   spiceLevel: number,
-  isVegetarian: boolean
+  isVegetarian: boolean,
+  isVegan: boolean,
+  isGlutenFree: boolean,
+  isDairyFree: boolean,
+  isNutFree: boolean
 ): string[] {
   const tags: string[] = [];
   const name = dishName.toLowerCase();
@@ -248,6 +323,18 @@ function generateTags(
   // Add dietary tags
   if (isVegetarian) {
     tags.push("Vegetarian");
+  }
+  if (isVegan) {
+    tags.push("Vegan");
+  }
+  if (isGlutenFree) {
+    tags.push("Gluten-Free");
+  }
+  if (isDairyFree) {
+    tags.push("Dairy-Free");
+  }
+  if (isNutFree) {
+    tags.push("Nut-Free");
   }
 
   // Add ingredient-based tags

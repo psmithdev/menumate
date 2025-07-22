@@ -110,16 +110,12 @@ export default function MenuTranslatorDesign() {
   // Function to filter and sort dishes based on current filters
   const applyFilters = (dishes: ParsedDish[]): ParsedDish[] => {
     const filteredDishes = dishes.filter((dish) => {
-      // Dietary filters
+      // Dietary filters - Use the new boolean properties directly
       if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
-      if (filters.dietary.vegan && !dish.tags.some(tag => tag.toLowerCase().includes('vegan'))) return false;
-      if (filters.dietary.glutenFree && !dish.tags.some(tag => tag.toLowerCase().includes('gluten'))) return false;
-      if (filters.dietary.dairyFree && dish.ingredients?.some(ing => 
-        ['milk', 'cheese', 'butter', 'cream', 'dairy'].some(dairy => ing.toLowerCase().includes(dairy))
-      )) return false;
-      if (filters.dietary.nutFree && dish.ingredients?.some(ing => 
-        ['nut', 'peanut', 'almond', 'walnut', 'cashew'].some(nut => ing.toLowerCase().includes(nut))
-      )) return false;
+      if (filters.dietary.vegan && !dish.isVegan) return false;
+      if (filters.dietary.glutenFree && !dish.isGlutenFree) return false;
+      if (filters.dietary.dairyFree && !dish.isDairyFree) return false;
+      if (filters.dietary.nutFree && !dish.isNutFree) return false;
 
       // Spice level filter
       if (dish.spiceLevel > filters.maxSpiceLevel) return false;
@@ -344,6 +340,10 @@ export default function MenuTranslatorDesign() {
               description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
               tags: analysis.tags,
               isVegetarian: analysis.isVegetarian,
+              isVegan: analysis.isVegan,
+              isGlutenFree: analysis.isGlutenFree,
+              isDairyFree: analysis.isDairyFree,
+              isNutFree: analysis.isNutFree,
               spiceLevel: analysis.spiceLevel,
               rating: 4.5,
               time: analysis.cookingTime,
@@ -363,6 +363,10 @@ export default function MenuTranslatorDesign() {
               description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
               tags: analysis.tags,
               isVegetarian: analysis.isVegetarian,
+              isVegan: analysis.isVegan,
+              isGlutenFree: analysis.isGlutenFree,
+              isDairyFree: analysis.isDairyFree,
+              isNutFree: analysis.isNutFree,
               spiceLevel: analysis.spiceLevel,
               rating: 4.5,
               time: analysis.cookingTime,
@@ -383,6 +387,10 @@ export default function MenuTranslatorDesign() {
               description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
               tags: analysis.tags,
               isVegetarian: analysis.isVegetarian,
+              isVegan: analysis.isVegan,
+              isGlutenFree: analysis.isGlutenFree,
+              isDairyFree: analysis.isDairyFree,
+              isNutFree: analysis.isNutFree,
               spiceLevel: analysis.spiceLevel,
               rating: 4.5,
               time: analysis.cookingTime,
@@ -420,6 +428,10 @@ export default function MenuTranslatorDesign() {
             description: `Delicious ${name} prepared with authentic ingredients`,
             tags: analysis.tags,
             isVegetarian: analysis.isVegetarian,
+            isVegan: analysis.isVegan,
+            isGlutenFree: analysis.isGlutenFree,
+            isDairyFree: analysis.isDairyFree,
+            isNutFree: analysis.isNutFree,
             spiceLevel: analysis.spiceLevel,
             rating: 4.5,
             time: analysis.cookingTime,
@@ -462,6 +474,10 @@ export default function MenuTranslatorDesign() {
           description: `Delicious ${line} prepared with authentic ingredients`,
           tags: analysis.tags,
           isVegetarian: analysis.isVegetarian,
+          isVegan: analysis.isVegan,
+          isGlutenFree: analysis.isGlutenFree,
+          isDairyFree: analysis.isDairyFree,
+          isNutFree: analysis.isNutFree,
           spiceLevel: analysis.spiceLevel,
           rating: 4.5,
           time: analysis.cookingTime,
@@ -506,6 +522,10 @@ export default function MenuTranslatorDesign() {
           description: "Menu item from your uploaded image",
           tags: ["Menu Item"],
           isVegetarian: false,
+          isVegan: false,
+          isGlutenFree: false,
+          isDairyFree: false,
+          isNutFree: false,
           spiceLevel: 0,
           rating: 4.0,
           time: "15 min",

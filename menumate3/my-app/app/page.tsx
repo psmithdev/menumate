@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Camera,
   Upload,
@@ -108,7 +108,7 @@ export default function MenuTranslatorDesign() {
   };
 
   // Function to filter and sort dishes based on current filters
-  const applyFilters = (dishes: ParsedDish[]): ParsedDish[] => {
+  const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
     const filteredDishes = dishes.filter((dish) => {
       // Dietary filters - Use the new boolean properties directly
       if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
@@ -144,7 +144,7 @@ export default function MenuTranslatorDesign() {
           return (b.rating || 0) - (a.rating || 0);
       }
     });
-  };
+  }, [filters]);
 
   // Update filtered dishes when parsedDishes or filters change
   useEffect(() => {
@@ -154,7 +154,7 @@ export default function MenuTranslatorDesign() {
     } else {
       setFilteredDishes([]);
     }
-  }, [parsedDishes, filters]);
+  }, [parsedDishes, filters, applyFilters]);
 
   // Enhanced error handling for OCR
   useEffect(() => {
@@ -567,7 +567,7 @@ export default function MenuTranslatorDesign() {
       });
       setParsedDishes(updatedDishes);
     }
-  }, [translatedText]);
+  }, [translatedText, parsedDishes]);
 
   if (currentScreen === "welcome") {
     return (

@@ -202,102 +202,82 @@ function determineSpiceLevel(dishName: string): number {
 function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Check for vegetarian indicators
+  // Check for explicit vegetarian indicators first
   if (VEGETARIAN_INDICATORS.some((indicator) => name.includes(indicator))) {
     return true;
   }
 
-  // Check for meat indicators
+  // Check for meat indicators in name - if found, definitely not vegetarian
   if (MEAT_INDICATORS.some((indicator) => name.includes(indicator))) {
     return false;
   }
 
-  // Check ingredients
+  // Check ingredients for meat - if found, not vegetarian
   const hasMeat = ingredients.some((ingredient) =>
-    MEAT_INDICATORS.includes(ingredient)
+    MEAT_INDICATORS.some(meat => ingredient.toLowerCase().includes(meat))
   );
 
-  return !hasMeat;
+  if (hasMeat) {
+    return false;
+  }
+
+  // Default to false unless explicitly vegetarian (more conservative approach)
+  // Only return true if dish contains obvious vegetarian ingredients
+  const hasVegIngredients = ingredients.some((ingredient) =>
+    ['tofu', 'mushroom', 'vegetable', 'rice', 'noodles', 'bean', 'eggplant'].some(veg => 
+      ingredient.toLowerCase().includes(veg)
+    )
+  );
+
+  return hasVegIngredients;
 }
 
 function checkVegan(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Check for vegan indicators
-  if (name.includes("vegan")) {
+  // Only return true if explicitly marked as vegan
+  if (name.includes("vegan") || name.includes("純素")) {
     return true;
   }
 
-  // Check for non-vegan ingredients
-  const nonVeganIngredients = ["egg", "milk", "cheese", "butter", "cream"];
-  const hasNonVegan = ingredients.some((ingredient) =>
-    nonVeganIngredients.includes(ingredient)
-  );
-
-  return !hasNonVegan && checkVegetarian(dishName, ingredients);
+  // If not explicitly vegan, return false (conservative approach)
+  return false;
 }
 
 function checkGlutenFree(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Check for explicit gluten-free marking
+  // Only return true if explicitly marked as gluten-free
   if (name.includes("gluten-free") || name.includes("gluten free") || name.includes("無麩質")) {
     return true;
   }
 
-  // Check for gluten-containing ingredients in name
-  const hasGlutenInName = GLUTEN_INGREDIENTS.some((ingredient) =>
-    name.includes(ingredient)
-  );
-
-  // Check for gluten-containing ingredients in parsed ingredients
-  const hasGlutenInIngredients = ingredients.some((ingredient) =>
-    GLUTEN_INGREDIENTS.some(gluten => ingredient.toLowerCase().includes(gluten))
-  );
-
-  return !hasGlutenInName && !hasGlutenInIngredients;
+  // Conservative approach: return false unless explicitly marked
+  return false;
 }
 
 function checkDairyFree(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Check for explicit dairy-free marking
+  // Only return true if explicitly marked as dairy-free
   if (name.includes("dairy-free") || name.includes("dairy free") || name.includes("無乳製品")) {
     return true;
   }
 
-  // Check for dairy ingredients in name
-  const hasDairyInName = DAIRY_INGREDIENTS.some((ingredient) =>
-    name.includes(ingredient)
-  );
-
-  // Check for dairy ingredients in parsed ingredients
-  const hasDairyInIngredients = ingredients.some((ingredient) =>
-    DAIRY_INGREDIENTS.some(dairy => ingredient.toLowerCase().includes(dairy))
-  );
-
-  return !hasDairyInName && !hasDairyInIngredients;
+  // Conservative approach: return false unless explicitly marked
+  return false;
 }
 
 function checkNutFree(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Check for explicit nut-free marking
+  // Only return true if explicitly marked as nut-free
   if (name.includes("nut-free") || name.includes("nut free") || name.includes("無堅果")) {
     return true;
   }
 
-  // Check for nut ingredients in name
-  const hasNutInName = NUT_INGREDIENTS.some((ingredient) =>
-    name.includes(ingredient)
-  );
-
-  // Check for nut ingredients in parsed ingredients
-  const hasNutInIngredients = ingredients.some((ingredient) =>
-    NUT_INGREDIENTS.some(nut => ingredient.toLowerCase().includes(nut))
-  );
-
-  return !hasNutInName && !hasNutInIngredients;
+  // Conservative approach: return false unless explicitly marked
+  return false;
 }
 
 function generateTags(

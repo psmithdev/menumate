@@ -72,7 +72,7 @@ export default function MenuTranslatorDesign() {
   useEffect(() => {
     console.log('Screen changed to:', currentScreen);
   }, [currentScreen]);
-  const [selectedDish] = useState<ParsedDish | null>(null);
+  const [selectedDish, setSelectedDish] = useState<ParsedDish | null>(null);
   const [menuImage, setMenuImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -217,6 +217,7 @@ export default function MenuTranslatorDesign() {
       })));
       const filtered = applyFilters(parsedDishes);
       console.log('Filtered dishes count:', filtered.length);
+      console.log('Filtered dishes:', filtered.map(d => d.originalName));
       setFilteredDishes(filtered);
     } else {
       setFilteredDishes([]);
@@ -1201,7 +1202,15 @@ export default function MenuTranslatorDesign() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredDishes.map((dish) => (
-                <DishCard key={dish.id} dish={dish} />
+                <DishCard 
+                  key={dish.id} 
+                  dish={dish} 
+                  onClick={() => {
+                    console.log('Dish clicked:', dish.originalName);
+                    setSelectedDish(dish);
+                    setCurrentScreen("dish-detail");
+                  }}
+                />
               ))}
             </div>
           )}

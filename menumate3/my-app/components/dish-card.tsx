@@ -14,12 +14,13 @@ interface DishCardProps {
     prepTime?: string;
     price?: string; // for compatibility
   };
+  onClick?: () => void;
 }
 
-export function DishCard({ dish }: DishCardProps) {
+export function DishCard({ dish, onClick }: DishCardProps) {
   const { addToCart } = useCart();
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden cursor-pointer hover:shadow-lg transition-shadow" onClick={onClick}>
       <div className="relative">
         <Image
           src={getDishImage(dish)}
@@ -98,7 +99,10 @@ export function DishCard({ dish }: DishCardProps) {
         <div className="flex justify-end">
           <button
             className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-1 px-3 rounded text-sm transition-colors"
-            onClick={() => addToCart(dish)}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent card click
+              addToCart(dish);
+            }}
           >
             Add to Cart
           </button>

@@ -132,6 +132,7 @@ export default function MenuTranslatorDesign() {
 
   // Function to filter and sort dishes based on current filters
   const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
+    console.log('applyFilters called with:', dishes.length, 'dishes and filters:', filters);
     const filteredDishes = dishes.filter((dish) => {
       // Dietary filters - Use the new boolean properties directly
       if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
@@ -202,7 +203,16 @@ export default function MenuTranslatorDesign() {
   // Update filtered dishes when parsedDishes or filters change
   useEffect(() => {
     if (parsedDishes.length > 0) {
+      console.log('Parsed dishes for filtering:', parsedDishes.map(d => ({
+        name: d.originalName,
+        isVegetarian: d.isVegetarian,
+        isVegan: d.isVegan,
+        isGlutenFree: d.isGlutenFree,
+        isDairyFree: d.isDairyFree,
+        isNutFree: d.isNutFree
+      })));
       const filtered = applyFilters(parsedDishes);
+      console.log('Filtered dishes count:', filtered.length);
       setFilteredDishes(filtered);
     } else {
       setFilteredDishes([]);
@@ -1511,12 +1521,17 @@ export default function MenuTranslatorDesign() {
                   </div>
                   <Switch 
                     checked={filters.dietary[item.key]}
-                    onCheckedChange={(checked) => 
-                      setFilters(prev => ({
-                        ...prev,
-                        dietary: { ...prev.dietary, [item.key]: checked }
-                      }))
-                    }
+                    onCheckedChange={(checked) => {
+                      console.log(`Filter ${item.key} changed to:`, checked);
+                      setFilters(prev => {
+                        const newFilters = {
+                          ...prev,
+                          dietary: { ...prev.dietary, [item.key]: checked }
+                        };
+                        console.log('New filter state:', newFilters);
+                        return newFilters;
+                      });
+                    }}
                   />
                 </div>
               ))}
@@ -1627,7 +1642,8 @@ export default function MenuTranslatorDesign() {
           {/* Reset Button */}
           <Button
             variant="outline"
-            onClick={() => 
+            onClick={() => {
+              console.log('Reset filters clicked');
               setFilters({
                 dietary: {
                   vegetarian: false,
@@ -1639,8 +1655,8 @@ export default function MenuTranslatorDesign() {
                 maxSpiceLevel: 4,
                 priceRange: { min: 5, max: 50 },
                 sortBy: 'recommended',
-              })
-            }
+              });
+            }}
             className="w-full h-12 rounded-2xl border-gray-300 text-gray-600 bg-transparent"
           >
             Reset All Filters

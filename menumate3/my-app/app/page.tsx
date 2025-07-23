@@ -136,7 +136,7 @@ export default function MenuTranslatorDesign() {
 
   // Function to filter and sort dishes based on current filters
   const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
-    console.log('applyFilters called with:', dishes.length, 'dishes and filters:', filters);
+    // console.log('applyFilters called with:', dishes.length, 'dishes and filters:', filters);
     const filteredDishes = dishes.filter((dish) => {
       // Dietary filters - Use the new boolean properties directly (handle undefined)
       if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
@@ -207,17 +207,9 @@ export default function MenuTranslatorDesign() {
   // Update filtered dishes when parsedDishes or filters change
   useEffect(() => {
     if (parsedDishes.length > 0) {
-      console.log('Parsed dishes for filtering:', parsedDishes.map(d => ({
-        name: d.originalName,
-        isVegetarian: d.isVegetarian,
-        isVegan: d.isVegan,
-        isGlutenFree: d.isGlutenFree,
-        isDairyFree: d.isDairyFree,
-        isNutFree: d.isNutFree
-      })));
+      // console.log('Parsed dishes for filtering:', parsedDishes.map(d => ({...})));
       const filtered = applyFilters(parsedDishes);
-      console.log('Filtered dishes count:', filtered.length);
-      console.log('Filtered dishes:', filtered.map(d => d.originalName));
+      console.log('Filtering applied:', filtered.length, 'of', parsedDishes.length, 'dishes match current filters');
       setFilteredDishes(filtered);
     } else {
       setFilteredDishes([]);

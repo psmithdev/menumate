@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import Image from "next/image";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import React, { useRef } from "react";
@@ -1528,20 +1527,29 @@ export default function MenuTranslatorDesign() {
                       {item.label}
                     </span>
                   </div>
-                  <Switch 
-                    checked={filters.dietary[item.key]}
-                    onCheckedChange={(checked) => {
-                      console.log(`Filter ${item.key} changed to:`, checked);
+                  <button
+                    onClick={() => {
+                      const newValue = !filters.dietary[item.key];
+                      console.log(`Filter ${item.key} changed to:`, newValue);
                       setFilters(prev => {
                         const newFilters = {
                           ...prev,
-                          dietary: { ...prev.dietary, [item.key]: checked }
+                          dietary: { ...prev.dietary, [item.key]: newValue }
                         };
                         console.log('New filter state:', newFilters);
                         return newFilters;
                       });
                     }}
-                  />
+                    className={`w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
+                      filters.dietary[item.key] 
+                        ? 'bg-orange-500' 
+                        : 'bg-gray-300'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
+                      filters.dietary[item.key] ? 'translate-x-6' : 'translate-x-0.5'
+                    }`} />
+                  </button>
                 </div>
               ))}
             </div>

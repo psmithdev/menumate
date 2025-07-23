@@ -68,6 +68,11 @@ type ParsedDish = {
 
 export default function MenuTranslatorDesign() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
+  
+  // Debug logging for screen changes
+  useEffect(() => {
+    console.log('Screen changed to:', currentScreen);
+  }, [currentScreen]);
   const [selectedDish] = useState<ParsedDish | null>(null);
   const [menuImage, setMenuImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -134,7 +139,7 @@ export default function MenuTranslatorDesign() {
   const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
     console.log('applyFilters called with:', dishes.length, 'dishes and filters:', filters);
     const filteredDishes = dishes.filter((dish) => {
-      // Dietary filters - Use the new boolean properties directly
+      // Dietary filters - Use the new boolean properties directly (handle undefined)
       if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
       if (filters.dietary.vegan && !dish.isVegan) return false;
       if (filters.dietary.glutenFree && !dish.isGlutenFree) return false;
@@ -1008,7 +1013,10 @@ export default function MenuTranslatorDesign() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentScreen("filters")}
+                  onClick={() => {
+                    console.log('Filter button clicked, navigating to filters screen');
+                    setCurrentScreen("filters");
+                  }}
                   className="rounded-full"
                 >
                   <Filter className="w-4 h-4 mr-2" />
@@ -1473,6 +1481,7 @@ export default function MenuTranslatorDesign() {
   }
 
   if (currentScreen === "filters") {
+    console.log('Rendering filters screen with current filters:', filters);
     return (
       <div className="min-h-screen bg-white">
         {/* Header */}

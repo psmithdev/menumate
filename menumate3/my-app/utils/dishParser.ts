@@ -293,29 +293,14 @@ function generateTags(
   const tags: string[] = [];
   const name = dishName.toLowerCase();
 
-  // Add spice tags
+  // Add spice tags only when explicitly detected (not default 0)
   if (spiceLevel >= 3) {
     tags.push("Spicy");
-  } else if (spiceLevel === 0) {
+  } else if (spiceLevel === 1 && SPICE_INDICATORS.mild.some(indicator => name.includes(indicator))) {
     tags.push("Mild");
   }
 
-  // Add dietary tags
-  if (isVegetarian) {
-    tags.push("Vegetarian");
-  }
-  if (isVegan) {
-    tags.push("Vegan");
-  }
-  if (isGlutenFree) {
-    tags.push("Gluten-Free");
-  }
-  if (isDairyFree) {
-    tags.push("Dairy-Free");
-  }
-  if (isNutFree) {
-    tags.push("Nut-Free");
-  }
+  // Don't add dietary tags here - they're already shown as badges in the dish card
 
   // Add ingredient-based tags
   if (ingredients.includes("chicken")) {

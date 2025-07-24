@@ -92,7 +92,7 @@ const GLUTEN_INGREDIENTS = [
   "小麦", "麺", "餃子", "パン", "うどん", "ラーメン", "そば", "天ぷら"
 ];
 
-// Meat indicators
+// Meat indicators - English and Chinese
 const MEAT_INDICATORS = [
   "chicken",
   "pork",
@@ -103,10 +103,20 @@ const MEAT_INDICATORS = [
   "shrimp",
   "crab",
   "meat",
-  "beef",
   "steak",
   "burger",
   "sausage",
+  // Chinese meat indicators
+  "肉", // meat
+  "鸡", // chicken
+  "猪", // pork
+  "牛", // beef
+  "羊", // lamb/mutton
+  "鸭", // duck
+  "鱼", // fish
+  "虾", // shrimp
+  "蟹", // crab
+  "蛋", // egg (often not vegetarian in Chinese context)
 ];
 
 export function analyzeDish(
@@ -205,16 +215,16 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   // Debug logging
   console.log(`Checking vegetarian for: "${dishName}", ingredients:`, ingredients);
 
-  // Only return true if explicitly marked as vegetarian
-  if (VEGETARIAN_INDICATORS.some((indicator) => name.includes(indicator))) {
-    console.log(`  -> TRUE: Found vegetarian indicator`);
-    return true;
-  }
-
-  // Check for meat indicators in name - if found, definitely not vegetarian
+  // Check for meat indicators FIRST - meat always takes precedence
   if (MEAT_INDICATORS.some((indicator) => name.includes(indicator))) {
     console.log(`  -> FALSE: Found meat indicator in name`);
     return false;
+  }
+
+  // Only return true if explicitly marked as vegetarian (after confirming no meat)
+  if (VEGETARIAN_INDICATORS.some((indicator) => name.includes(indicator))) {
+    console.log(`  -> TRUE: Found vegetarian indicator`);
+    return true;
   }
 
   // Check ingredients for meat - if found, not vegetarian

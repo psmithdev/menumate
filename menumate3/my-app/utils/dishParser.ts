@@ -202,13 +202,18 @@ function determineSpiceLevel(dishName: string): number {
 function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Check for explicit vegetarian indicators first
+  // Debug logging
+  console.log(`Checking vegetarian for: "${dishName}", ingredients:`, ingredients);
+
+  // Only return true if explicitly marked as vegetarian
   if (VEGETARIAN_INDICATORS.some((indicator) => name.includes(indicator))) {
+    console.log(`  -> TRUE: Found vegetarian indicator`);
     return true;
   }
 
   // Check for meat indicators in name - if found, definitely not vegetarian
   if (MEAT_INDICATORS.some((indicator) => name.includes(indicator))) {
+    console.log(`  -> FALSE: Found meat indicator in name`);
     return false;
   }
 
@@ -218,18 +223,17 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   );
 
   if (hasMeat) {
+    console.log(`  -> FALSE: Found meat in ingredients`);
     return false;
   }
 
-  // Default to false unless explicitly vegetarian (more conservative approach)
-  // Only return true if dish contains obvious vegetarian ingredients
-  const hasVegIngredients = ingredients.some((ingredient) =>
-    ['tofu', 'mushroom', 'vegetable', 'rice', 'noodles', 'bean', 'eggplant'].some(veg => 
-      ingredient.toLowerCase().includes(veg)
-    )
-  );
+  // Very conservative approach: only return true for explicitly vegetarian dishes
+  // Check for strong vegetarian indicators in dish name
+  const strongVegIndicators = ['vegetarian', 'tofu', 'mushroom', '素', '菜', '豆腐'];
+  const hasStrongVegIndicator = strongVegIndicators.some(indicator => name.includes(indicator));
 
-  return hasVegIngredients;
+  console.log(`  -> ${hasStrongVegIndicator ? 'TRUE' : 'FALSE'}: Strong veg indicator check`);
+  return hasStrongVegIndicator;
 }
 
 function checkVegan(dishName: string, ingredients: string[]): boolean {

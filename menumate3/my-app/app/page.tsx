@@ -207,7 +207,15 @@ export default function MenuTranslatorDesign() {
   // Update filtered dishes when parsedDishes or filters change
   useEffect(() => {
     if (parsedDishes.length > 0) {
-      // console.log('Parsed dishes for filtering:', parsedDishes.map(d => ({...})));
+      console.log('Parsed dishes dietary properties:', parsedDishes.map(d => ({
+        name: d.originalName,
+        isVegetarian: d.isVegetarian,
+        isVegan: d.isVegan,
+        isGlutenFree: d.isGlutenFree,
+        isDairyFree: d.isDairyFree,
+        isNutFree: d.isNutFree,
+        tags: d.tags
+      })));
       const filtered = applyFilters(parsedDishes);
       console.log('Filtering applied:', filtered.length, 'of', parsedDishes.length, 'dishes match current filters');
       setFilteredDishes(filtered);

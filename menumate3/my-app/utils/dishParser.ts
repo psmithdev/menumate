@@ -108,7 +108,7 @@ const MEAT_INDICATORS = [
   "sausage",
   // Chinese meat indicators
   "肉", // meat
-  "鸡", // chicken
+  "鸡", // chicken  
   "猪", // pork
   "牛", // beef
   "羊", // lamb/mutton
@@ -116,7 +116,8 @@ const MEAT_INDICATORS = [
   "鱼", // fish
   "虾", // shrimp
   "蟹", // crab
-  "蛋", // egg (often not vegetarian in Chinese context)
+  "大肠", // intestines
+  "火腿", // ham
 ];
 
 export function analyzeDish(
@@ -237,13 +238,25 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
     return false;
   }
 
-  // Very conservative approach: only return true for explicitly vegetarian dishes
-  // Check for strong vegetarian indicators in dish name
-  const strongVegIndicators = ['vegetarian', 'tofu', 'mushroom', '素', '菜', '豆腐'];
-  const hasStrongVegIndicator = strongVegIndicators.some(indicator => name.includes(indicator));
+  // Comprehensive vegetarian indicators for Chinese dishes
+  const vegetarianIndicators = [
+    'vegetarian', 'tofu', 'mushroom', '素', '豆腐', // existing
+    '茄子', // eggplant
+    '蛋', // egg (vegetarian in Western context)
+    '青菜', // green vegetables
+    '白菜', // cabbage  
+    '土豆丝', // potato strips (when no meat)
+    '韭菜', // chives
+    '西红柿', // tomato
+  ];
+  
+  // Special case: egg dishes are vegetarian (蛋 but not in meat context)
+  const hasEggDish = name.includes('蛋') && !name.includes('肉');
+  
+  const hasVegIndicator = vegetarianIndicators.some(indicator => name.includes(indicator)) || hasEggDish;
 
-  console.log(`  -> ${hasStrongVegIndicator ? 'TRUE' : 'FALSE'}: Strong veg indicator check`);
-  return hasStrongVegIndicator;
+  console.log(`  -> ${hasVegIndicator ? 'TRUE' : 'FALSE'}: Vegetarian indicator check`);
+  return hasVegIndicator;
 }
 
 function checkVegan(dishName: string, ingredients: string[]): boolean {

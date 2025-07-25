@@ -71,10 +71,27 @@ function extractIngredients(dishName: string, cuisine: string): string[] {
   const ingredients: string[] = [];
   const name = dishName.toLowerCase();
 
-  // Check for meat ingredients
+  // Special handling for 鸡蛋 (chicken egg) - treat as one unit
+  if (name.includes('鸡蛋')) {
+    ingredients.push('鸡蛋'); // Add egg as vegetarian ingredient
+  }
+
+  // Check for meat ingredients (but skip 鸡 if it's part of 鸡蛋)
   const meatIngredients = getAllMeatIndicators();
   meatIngredients.forEach((ingredient) => {
-    if (name.includes(ingredient.toLowerCase())) {
+    const ingredientLower = ingredient.toLowerCase();
+    
+    // Skip 鸡 if it's part of 鸡蛋
+    if (ingredientLower === '鸡' && name.includes('鸡蛋')) {
+      return; // Skip this ingredient
+    }
+    
+    // Skip 鱼 if it's part of 鱼香 (fish-flavored, usually vegetarian)
+    if (ingredientLower === '鱼' && name.includes('鱼香')) {
+      return; // Skip this ingredient
+    }
+    
+    if (name.includes(ingredientLower)) {
       ingredients.push(ingredient);
     }
   });

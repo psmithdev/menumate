@@ -136,24 +136,69 @@ export default function MenuTranslatorDesign() {
 
   // Function to filter and sort dishes based on current filters
   const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
-    // console.log('applyFilters called with:', dishes.length, 'dishes and filters:', filters);
-    const filteredDishes = dishes.filter((dish) => {
+    console.log('\n=== FILTER DEBUG START ===');
+    console.log('Input dishes:', dishes.length);
+    console.log('Active filters:', {
+      vegetarian: filters.dietary.vegetarian,
+      vegan: filters.dietary.vegan,
+      glutenFree: filters.dietary.glutenFree,
+      dairyFree: filters.dietary.dairyFree,
+      nutFree: filters.dietary.nutFree,
+      maxSpiceLevel: filters.maxSpiceLevel,
+      priceRange: filters.priceRange,
+      sortBy: filters.sortBy
+    });
+
+    const filteredDishes = dishes.filter((dish, index) => {
+      const debugInfo = {
+        index,
+        name: dish.originalName,
+        properties: {
+          isVegetarian: dish.isVegetarian,
+          isVegan: dish.isVegan,
+          isGlutenFree: dish.isGlutenFree,
+          isDairyFree: dish.isDairyFree,
+          isNutFree: dish.isNutFree,
+          spiceLevel: dish.spiceLevel
+        }
+      };
+
       // Dietary filters - Use the new boolean properties directly (handle undefined)
-      if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
-      if (filters.dietary.vegan && !dish.isVegan) return false;
-      if (filters.dietary.glutenFree && !dish.isGlutenFree) return false;
-      if (filters.dietary.dairyFree && !dish.isDairyFree) return false;
-      if (filters.dietary.nutFree && !dish.isNutFree) return false;
+      if (filters.dietary.vegetarian && !dish.isVegetarian) {
+        console.log(`❌ FILTERED OUT (vegetarian): ${dish.originalName} - isVegetarian: ${dish.isVegetarian}`);
+        return false;
+      }
+      if (filters.dietary.vegan && !dish.isVegan) {
+        console.log(`❌ FILTERED OUT (vegan): ${dish.originalName} - isVegan: ${dish.isVegan}`);
+        return false;
+      }
+      if (filters.dietary.glutenFree && !dish.isGlutenFree) {
+        console.log(`❌ FILTERED OUT (gluten-free): ${dish.originalName} - isGlutenFree: ${dish.isGlutenFree}`);
+        return false;
+      }
+      if (filters.dietary.dairyFree && !dish.isDairyFree) {
+        console.log(`❌ FILTERED OUT (dairy-free): ${dish.originalName} - isDairyFree: ${dish.isDairyFree}`);
+        return false;
+      }
+      if (filters.dietary.nutFree && !dish.isNutFree) {
+        console.log(`❌ FILTERED OUT (nut-free): ${dish.originalName} - isNutFree: ${dish.isNutFree}`);
+        return false;
+      }
 
       // Spice level filter
-      if (dish.spiceLevel > filters.maxSpiceLevel) return false;
+      if (dish.spiceLevel > filters.maxSpiceLevel) {
+        console.log(`❌ FILTERED OUT (spice level): ${dish.originalName} - spiceLevel: ${dish.spiceLevel} > max: ${filters.maxSpiceLevel}`);
+        return false;
+      }
 
       // Price range filter
       const price = extractPriceNumber(dish.originalPrice);
       if (price > 0 && (price < filters.priceRange.min || price > filters.priceRange.max)) {
+        console.log(`❌ FILTERED OUT (price): ${dish.originalName} - price: ${price} not in range: ${filters.priceRange.min}-${filters.priceRange.max}`);
         return false;
       }
 
+      console.log(`✅ PASSED: ${dish.originalName}`, debugInfo.properties);
       return true;
     });
 
@@ -202,6 +247,20 @@ export default function MenuTranslatorDesign() {
           return score !== 0 ? score : a.originalName.localeCompare(b.originalName);
       }
     });
+
+    console.log(`\n=== FILTER DEBUG SUMMARY ===`);
+    console.log(`📊 Result: ${filteredDishes.length} of ${dishes.length} dishes passed filters`);
+    if (filteredDishes.length > 0) {
+      console.log(`✅ Passed dishes:`, filteredDishes.map(d => ({
+        name: d.originalName,
+        isVegetarian: d.isVegetarian,
+        isVegan: d.isVegan,
+        spiceLevel: d.spiceLevel
+      })));
+    }
+    console.log('=== FILTER DEBUG END ===\n');
+
+    return filteredDishes;
   }, [filters, extractPriceNumber]);
 
   // Update filtered dishes when parsedDishes or filters change

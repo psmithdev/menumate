@@ -105,6 +105,73 @@ export default function MenuTranslatorDesign() {
   // Filtered dishes state
   const [filteredDishes, setFilteredDishes] = useState<ParsedDish[]>([]);
 
+  // DEVELOPMENT MODE: Auto-load test data when URL contains ?test=true
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('test') === 'true') {
+      console.log('🚀 DEVELOPMENT MODE: Loading test data...');
+      
+      // Mock Chinese menu OCR text from your actual menu
+      const mockOcrText = `5
+盖浇饭
+青椒肉丝
+香干肉丝
+蒜苗肉丝
+土豆肉丝
+茭白肉丝
+雪菜肉丝
+8 辣子白菜
+辣子肉丁
+鱼香肉丝
+香菇青菜
+韭菜炒蛋
+西红柿炒蛋
+茄子肉丝
+回锅肉
+青椒炒蛋
+青椒肉片
+宫爆鸡丁
+木耳肉片
+宫爆肉丁
+雪菜炒蛋
+香菇肉片
+莴笋肉片
+油焖茄子
+鱼香茄子
+麻婆豆腐
+辣子豆腐
+茭白肉片
+酸辣土豆丝 5 韭菜百叶
+鱼香肉丝盖浇饭
+西红柿蛋炒饭
+回锅肉盖浇饭
+325 25
+炒饭类
+雪菜肉丝炒饭
+西红柿鸡蛋炒饭
+青椒肉丝炒饭
+青椒牛肉炒饭
+雪菜大肠炒饭
+火腿肠炒饭
+鸡蛋炒面
+炒面类
+炒 肉丝炒面
+牛肉面
+大肠面
+青椒肉丝盖浇饭
+类 肉丝面
+鸡蛋面`;
+
+      // Set the OCR text and skip to results
+      setOcrText(mockOcrText);
+      setDetectedLanguage('zh');
+      setTargetLanguage('en');
+      setCurrentScreen('results');
+      
+      console.log('🎯 Test data loaded - jumped directly to results screen!');
+    }
+  }, []);
+
   // Enhanced function to extract price number from price string with multiple currency support
   const extractPriceNumber = useCallback((priceString: string): number => {
     if (!priceString || priceString === "Price not detected") return 0;

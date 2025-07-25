@@ -136,8 +136,8 @@ function determineSpiceLevel(dishName: string): number {
 function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Debug logging
-  console.log(`Checking vegetarian for: "${dishName}", ingredients:`, ingredients);
+  // Debug logging - UPDATED VERSION WITH EGG FIXES
+  console.log(`🔍 UPDATED VERSION: Checking vegetarian for: "${dishName}", ingredients:`, ingredients);
 
   // Special handling for egg dishes - check for 鸡蛋 (chicken egg) as a complete unit
   const hasEggIndicators = name.includes('蛋') || name.includes('鸡蛋');

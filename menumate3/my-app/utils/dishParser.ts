@@ -1,3 +1,12 @@
+import { 
+  INGREDIENT_DB,
+  getAllMeatIndicators,
+  getAllVegetableIndicators,
+  getAllDairyIndicators,
+  getAllNutIndicators,
+  getAllGlutenIndicators
+} from './ingredientDatabase';
+
 export interface DishAnalysis {
   ingredients: string[];
   spiceLevel: number;
@@ -12,113 +21,6 @@ export interface DishAnalysis {
   cookingTime: string;
   cuisine: string;
 }
-
-// Common ingredients by cuisine
-const CHINESE_INGREDIENTS = [
-  "chicken",
-  "pork",
-  "beef",
-  "shrimp",
-  "tofu",
-  "egg",
-  "rice",
-  "noodles",
-  "soy sauce",
-  "ginger",
-  "garlic",
-  "scallions",
-  "bell peppers",
-  "mushrooms",
-  "bamboo shoots",
-  "water chestnuts",
-  "bok choy",
-  "snow peas",
-];
-
-const THAI_INGREDIENTS = [
-  "chicken",
-  "pork",
-  "beef",
-  "shrimp",
-  "fish",
-  "tofu",
-  "rice",
-  "noodles",
-  "coconut milk",
-  "lemongrass",
-  "lime",
-  "fish sauce",
-  "basil",
-  "mint",
-  "peanuts",
-  "bean sprouts",
-  "bamboo shoots",
-  "galangal",
-];
-
-// Spice indicators - Enhanced with more comprehensive patterns
-const SPICE_INDICATORS = {
-  mild: ["mild", "sweet", "sour", "light", "gentle", "no spice", "non-spicy", "子供", "子ども"],
-  medium: ["medium", "moderate", "balanced", "traditional", "少し辛い", "微辣", "小辣"],
-  hot: ["spicy", "hot", "fiery", "burning", "chili", "pepper", "curry", "szechuan", "sichuan", "辛い", "中辣", "jalapeño", "habanero", "thai chili", "bird's eye", "sambal", "gochujang"],
-  very_hot: ["extra spicy", "very hot", "burning hot", "nuclear", "volcano", "ghost pepper", "carolina reaper", "scotch bonnet", "超辛い", "大辣", "火辣", "麻辣"],
-};
-
-// Vegetarian indicators - Enhanced
-const VEGETARIAN_INDICATORS = [
-  "vegetarian", "vegan", "tofu", "tempeh", "seitan", "mushroom", "vegetable", "veggie", 
-  "plant-based", "meatless", "素", "素食", "菜", "豆腐", "蔬菜", "菇", "eggplant", "aubergine",
-  "spinach", "broccoli", "cabbage", "bean", "lentil", "quinoa", "avocado"
-];
-
-// Dairy ingredients for dairy-free detection
-const DAIRY_INGREDIENTS = [
-  "milk", "cheese", "butter", "cream", "yogurt", "dairy", "lactose", "whey", "casein",
-  "mozzarella", "parmesan", "cheddar", "cottage cheese", "sour cream", "ice cream",
-  "ghee", "buttermilk", "半脂", "全脂", "チーズ", "バター", "クリーム", "ヨーグルト"
-];
-
-// Nut ingredients for nut allergy detection
-const NUT_INGREDIENTS = [
-  "almond", "walnut", "cashew", "peanut", "pecan", "pistachio", "hazelnut", "macadamia",
-  "pine nut", "brazil nut", "chestnut", "nut", "nuts", "アーモンド", "クルミ", "カシューナッツ",
-  "ピーナッツ", "落花生", "坚果", "杏仁", "核桃", "腰果", "花生"
-];
-
-// Gluten ingredients - Enhanced
-const GLUTEN_INGREDIENTS = [
-  "wheat", "flour", "bread", "noodles", "dumpling", "pasta", "ramen", "udon", "soba",
-  "gluten", "barley", "rye", "malt", "seitan", "tempura", "breaded", "batter",
-  "小麦", "麺", "餃子", "パン", "うどん", "ラーメン", "そば", "天ぷら"
-];
-
-// Meat indicators - English and Chinese
-const MEAT_INDICATORS = [
-  "chicken",
-  "pork",
-  "beef",
-  "lamb",
-  "duck",
-  "fish",
-  "shrimp",
-  "crab",
-  "meat",
-  "steak",
-  "burger",
-  "sausage",
-  // Chinese meat indicators
-  "肉", // meat
-  "鸡", // chicken  
-  "猪", // pork
-  "牛", // beef
-  "羊", // lamb/mutton
-  "鸭", // duck
-  "鱼", // fish
-  "虾", // shrimp
-  "蟹", // crab
-  "大肠", // intestines
-  "火腿", // ham
-];
 
 export function analyzeDish(
   dishName: string,
@@ -169,18 +71,39 @@ function extractIngredients(dishName: string, cuisine: string): string[] {
   const ingredients: string[] = [];
   const name = dishName.toLowerCase();
 
-  // Get cuisine-specific ingredients
-  const cuisineIngredients =
-    cuisine === "thai" ? THAI_INGREDIENTS : CHINESE_INGREDIENTS;
-
-  // Check for ingredients in dish name
-  cuisineIngredients.forEach((ingredient) => {
-    if (name.includes(ingredient)) {
+  // Check for meat ingredients
+  const meatIngredients = getAllMeatIndicators();
+  meatIngredients.forEach((ingredient) => {
+    if (name.includes(ingredient.toLowerCase())) {
       ingredients.push(ingredient);
     }
   });
 
-  // Add common ingredients if none found
+  // Check for vegetable ingredients
+  const vegetableIngredients = getAllVegetableIndicators();
+  vegetableIngredients.forEach((ingredient) => {
+    if (name.includes(ingredient.toLowerCase())) {
+      ingredients.push(ingredient);
+    }
+  });
+
+  // Check for dairy ingredients
+  const dairyIngredients = getAllDairyIndicators();
+  dairyIngredients.forEach((ingredient) => {
+    if (name.includes(ingredient.toLowerCase())) {
+      ingredients.push(ingredient);
+    }
+  });
+
+  // Check for nut ingredients
+  const nutIngredients = getAllNutIndicators();
+  nutIngredients.forEach((ingredient) => {
+    if (name.includes(ingredient.toLowerCase())) {
+      ingredients.push(ingredient);
+    }
+  });
+
+  // Add common base ingredients if none found
   if (ingredients.length === 0) {
     ingredients.push("rice", "vegetables");
   }
@@ -191,23 +114,23 @@ function extractIngredients(dishName: string, cuisine: string): string[] {
 function determineSpiceLevel(dishName: string): number {
   const name = dishName.toLowerCase();
 
-  if (SPICE_INDICATORS.very_hot.some((indicator) => name.includes(indicator))) {
+  if (INGREDIENT_DB.spices.very_hot.some((indicator) => name.includes(indicator.toLowerCase()))) {
     return 4;
   } else if (
-    SPICE_INDICATORS.hot.some((indicator) => name.includes(indicator))
+    INGREDIENT_DB.spices.hot.some((indicator) => name.includes(indicator.toLowerCase()))
   ) {
     return 3;
   } else if (
-    SPICE_INDICATORS.medium.some((indicator) => name.includes(indicator))
+    INGREDIENT_DB.spices.medium.some((indicator) => name.includes(indicator.toLowerCase()))
   ) {
     return 2;
   } else if (
-    SPICE_INDICATORS.mild.some((indicator) => name.includes(indicator))
+    INGREDIENT_DB.spices.mild.some((indicator) => name.includes(indicator.toLowerCase()))
   ) {
     return 1;
   }
 
-  return 0; // Default to mild
+  return 0; // Default to no spice detected
 }
 
 function checkVegetarian(dishName: string, ingredients: string[]): boolean {
@@ -217,53 +140,46 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   console.log(`Checking vegetarian for: "${dishName}", ingredients:`, ingredients);
 
   // Check for meat indicators FIRST - meat always takes precedence
-  if (MEAT_INDICATORS.some((indicator) => name.includes(indicator))) {
+  const meatIndicators = getAllMeatIndicators();
+  const hasMeatInName = meatIndicators.some((indicator) => 
+    name.includes(indicator.toLowerCase())
+  );
+  
+  if (hasMeatInName) {
     console.log(`  -> FALSE: Found meat indicator in name`);
     return false;
   }
 
-  // Only return true if explicitly marked as vegetarian (after confirming no meat)
-  if (VEGETARIAN_INDICATORS.some((indicator) => name.includes(indicator))) {
-    console.log(`  -> TRUE: Found vegetarian indicator`);
-    return true;
-  }
-
   // Check ingredients for meat - if found, not vegetarian
-  const hasMeat = ingredients.some((ingredient) =>
-    MEAT_INDICATORS.some(meat => ingredient.toLowerCase().includes(meat))
+  const hasMeatInIngredients = ingredients.some((ingredient) =>
+    meatIndicators.some(meat => ingredient.toLowerCase().includes(meat.toLowerCase()))
   );
 
-  if (hasMeat) {
+  if (hasMeatInIngredients) {
     console.log(`  -> FALSE: Found meat in ingredients`);
     return false;
   }
 
-  // Comprehensive vegetarian indicators for Chinese dishes
-  const vegetarianIndicators = [
-    'vegetarian', 'tofu', 'mushroom', '素', '豆腐', // existing
-    '茄子', // eggplant
-    '蛋', // egg (vegetarian in Western context)
-    '青菜', // green vegetables
-    '白菜', // cabbage  
-    '土豆丝', // potato strips (when no meat)
-    '韭菜', // chives
-    '西红柿', // tomato
-  ];
+  // Check for vegetarian indicators
+  const vegetableIndicators = getAllVegetableIndicators();
+  const hasVegInName = vegetableIndicators.some((indicator) => 
+    name.includes(indicator.toLowerCase())
+  );
   
   // Special case: egg dishes are vegetarian (蛋 but not in meat context)
-  const hasEggDish = name.includes('蛋') && !name.includes('肉');
-  
-  const hasVegIndicator = vegetarianIndicators.some(indicator => name.includes(indicator)) || hasEggDish;
+  const hasEggDish = name.includes('蛋') && !hasMeatInName;
 
-  console.log(`  -> ${hasVegIndicator ? 'TRUE' : 'FALSE'}: Vegetarian indicator check`);
-  return hasVegIndicator;
+  const isVegetarian = hasVegInName || hasEggDish;
+
+  console.log(`  -> ${isVegetarian ? 'TRUE' : 'FALSE'}: Vegetarian indicator check`);
+  return isVegetarian;
 }
 
 function checkVegan(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
   // Only return true if explicitly marked as vegan
-  if (name.includes("vegan") || name.includes("純素")) {
+  if (name.includes("vegan") || name.includes("純素") || name.includes("纯素")) {
     return true;
   }
 
@@ -274,36 +190,75 @@ function checkVegan(dishName: string, ingredients: string[]): boolean {
 function checkGlutenFree(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Only return true if explicitly marked as gluten-free
-  if (name.includes("gluten-free") || name.includes("gluten free") || name.includes("無麩質")) {
+  // Check for explicit gluten-free marking
+  if (name.includes("gluten-free") || name.includes("gluten free") || name.includes("無麩質") || name.includes("无麸质")) {
     return true;
   }
 
-  // Conservative approach: return false unless explicitly marked
+  // Check for gluten-containing ingredients - if found, not gluten-free
+  const glutenIndicators = getAllGlutenIndicators();
+  const hasGluten = glutenIndicators.some((indicator) => 
+    name.includes(indicator.toLowerCase())
+  ) || ingredients.some((ingredient) =>
+    glutenIndicators.some(gluten => ingredient.toLowerCase().includes(gluten.toLowerCase()))
+  );
+
+  // If gluten detected, definitely not gluten-free
+  if (hasGluten) {
+    return false;
+  }
+
+  // Conservative: only return true if explicitly marked
   return false;
 }
 
 function checkDairyFree(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Only return true if explicitly marked as dairy-free
-  if (name.includes("dairy-free") || name.includes("dairy free") || name.includes("無乳製品")) {
+  // Check for explicit dairy-free marking
+  if (name.includes("dairy-free") || name.includes("dairy free") || name.includes("無乳製品") || name.includes("无乳制品")) {
     return true;
   }
 
-  // Conservative approach: return false unless explicitly marked
+  // Check for dairy ingredients - if found, not dairy-free
+  const dairyIndicators = getAllDairyIndicators();
+  const hasDairy = dairyIndicators.some((indicator) => 
+    name.includes(indicator.toLowerCase())
+  ) || ingredients.some((ingredient) =>
+    dairyIndicators.some(dairy => ingredient.toLowerCase().includes(dairy.toLowerCase()))
+  );
+
+  // If dairy detected, definitely not dairy-free
+  if (hasDairy) {
+    return false;
+  }
+
+  // Conservative: only return true if explicitly marked
   return false;
 }
 
 function checkNutFree(dishName: string, ingredients: string[]): boolean {
   const name = dishName.toLowerCase();
 
-  // Only return true if explicitly marked as nut-free
-  if (name.includes("nut-free") || name.includes("nut free") || name.includes("無堅果")) {
+  // Check for explicit nut-free marking
+  if (name.includes("nut-free") || name.includes("nut free") || name.includes("無堅果") || name.includes("无坚果")) {
     return true;
   }
 
-  // Conservative approach: return false unless explicitly marked
+  // Check for nut ingredients - if found, not nut-free
+  const nutIndicators = getAllNutIndicators();
+  const hasNuts = nutIndicators.some((indicator) => 
+    name.includes(indicator.toLowerCase())
+  ) || ingredients.some((ingredient) =>
+    nutIndicators.some(nut => ingredient.toLowerCase().includes(nut.toLowerCase()))
+  );
+
+  // If nuts detected, definitely not nut-free
+  if (hasNuts) {
+    return false;
+  }
+
+  // Conservative: only return true if explicitly marked
   return false;
 }
 
@@ -323,31 +278,59 @@ function generateTags(
   // Add spice tags only when explicitly detected (not default 0)
   if (spiceLevel >= 3) {
     tags.push("Spicy");
-  } else if (spiceLevel === 1 && SPICE_INDICATORS.mild.some(indicator => name.includes(indicator))) {
+  } else if (spiceLevel === 1 && INGREDIENT_DB.spices.mild.some(indicator => name.includes(indicator.toLowerCase()))) {
     tags.push("Mild");
   }
 
   // Don't add dietary tags here - they're already shown as badges in the dish card
 
-  // Add ingredient-based tags
-  if (ingredients.includes("chicken")) {
+  // Add ingredient-based tags - check for primary proteins
+  const meatIndicators = getAllMeatIndicators();
+  
+  // Chicken variants
+  if (meatIndicators.some(meat => 
+    ["chicken", "鸡", "ไก่"].includes(meat.toLowerCase()) && 
+    (name.includes(meat.toLowerCase()) || ingredients.some(ing => ing.toLowerCase().includes(meat.toLowerCase())))
+  )) {
     tags.push("Chicken");
-  } else if (ingredients.includes("beef")) {
+  }
+  // Beef variants
+  else if (meatIndicators.some(meat => 
+    ["beef", "牛", "เนื้อวัว"].includes(meat.toLowerCase()) && 
+    (name.includes(meat.toLowerCase()) || ingredients.some(ing => ing.toLowerCase().includes(meat.toLowerCase())))
+  )) {
     tags.push("Beef");
-  } else if (ingredients.includes("pork")) {
+  }
+  // Pork variants
+  else if (meatIndicators.some(meat => 
+    ["pork", "猪", "หมู"].includes(meat.toLowerCase()) && 
+    (name.includes(meat.toLowerCase()) || ingredients.some(ing => ing.toLowerCase().includes(meat.toLowerCase())))
+  )) {
     tags.push("Pork");
-  } else if (ingredients.includes("shrimp")) {
+  }
+  // Seafood variants
+  else if (meatIndicators.some(meat => 
+    ["shrimp", "fish", "crab", "虾", "鱼", "蟹", "กุ้ง", "ปลา", "ปู"].includes(meat.toLowerCase()) && 
+    (name.includes(meat.toLowerCase()) || ingredients.some(ing => ing.toLowerCase().includes(meat.toLowerCase())))
+  )) {
     tags.push("Seafood");
   }
 
-  // Add cooking method tags
-  if (name.includes("fried")) {
-    tags.push("Fried");
-  } else if (name.includes("steamed")) {
-    tags.push("Steamed");
-  } else if (name.includes("grilled")) {
-    tags.push("Grilled");
-  }
+  // Add cooking method tags (Chinese/Thai/English)
+  const cookingMethods = [
+    { keywords: ["fried", "炒", "炸", "ทอด", "ผัด"], tag: "Fried" },
+    { keywords: ["steamed", "蒸", "นึ่ง"], tag: "Steamed" },
+    { keywords: ["grilled", "烤", "烧", "ย่าง"], tag: "Grilled" },
+    { keywords: ["braised", "红烧", "焖", "ตุ๋น"], tag: "Braised" },
+    { keywords: ["soup", "汤", "羹", "ซุป"], tag: "Soup" },
+    { keywords: ["salad", "凉拌", "ยำ"], tag: "Salad" }
+  ];
+
+  cookingMethods.forEach(method => {
+    if (method.keywords.some(keyword => name.includes(keyword))) {
+      tags.push(method.tag);
+    }
+  });
 
   return tags;
 }

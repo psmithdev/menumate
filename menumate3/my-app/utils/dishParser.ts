@@ -139,11 +139,22 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   // Debug logging
   console.log(`Checking vegetarian for: "${dishName}", ingredients:`, ingredients);
 
-  // Check for meat indicators FIRST - meat always takes precedence
+  // Special handling for egg dishes - check for 鸡蛋 (chicken egg) as a complete unit
+  const hasEggIndicators = name.includes('蛋') || name.includes('鸡蛋');
+  
+  // Check for meat indicators, but exclude cases where 鸡 is part of 鸡蛋
   const meatIndicators = getAllMeatIndicators();
-  const hasMeatInName = meatIndicators.some((indicator) => 
-    name.includes(indicator.toLowerCase())
-  );
+  const hasMeatInName = meatIndicators.some((indicator) => {
+    const meatLower = indicator.toLowerCase();
+    
+    // Special case: if it's "鸡" but part of "鸡蛋", don't count as meat
+    if (meatLower === '鸡' && name.includes('鸡蛋')) {
+      console.log(`  -> Ignoring "鸡" in "鸡蛋" context`);
+      return false;
+    }
+    
+    return name.includes(meatLower);
+  });
   
   if (hasMeatInName) {
     console.log(`  -> FALSE: Found meat indicator in name`);
@@ -152,7 +163,17 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
 
   // Check ingredients for meat - if found, not vegetarian
   const hasMeatInIngredients = ingredients.some((ingredient) =>
-    meatIndicators.some(meat => ingredient.toLowerCase().includes(meat.toLowerCase()))
+    meatIndicators.some(meat => {
+      const meatLower = meat.toLowerCase();
+      const ingredientLower = ingredient.toLowerCase();
+      
+      // Same special case for ingredients
+      if (meatLower === '鸡' && ingredientLower.includes('鸡蛋')) {
+        return false;
+      }
+      
+      return ingredientLower.includes(meatLower);
+    })
   );
 
   if (hasMeatInIngredients) {
@@ -166,12 +187,15 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
     name.includes(indicator.toLowerCase())
   );
   
-  // Special case: egg dishes are vegetarian (蛋 but not in meat context)
-  const hasEggDish = name.includes('蛋') && !hasMeatInName;
+  // Enhanced egg dish detection
+  const hasEggDish = hasEggIndicators && !hasMeatInName;
 
-  const isVegetarian = hasVegInName || hasEggDish;
+  // Special case for "鱼香" dishes - they're often vegetarian (fish-flavored but no actual fish)
+  const isFishFlavoredVegetarian = name.includes('鱼香') && (hasVegInName || hasEggDish);
 
-  console.log(`  -> ${isVegetarian ? 'TRUE' : 'FALSE'}: Vegetarian indicator check`);
+  const isVegetarian = hasVegInName || hasEggDish || isFishFlavoredVegetarian;
+
+  console.log(`  -> ${isVegetarian ? 'TRUE' : 'FALSE'}: Vegetarian indicator check (egg: ${hasEggDish}, veg: ${hasVegInName}, fishFlavored: ${isFishFlavoredVegetarian})`);
   return isVegetarian;
 }
 

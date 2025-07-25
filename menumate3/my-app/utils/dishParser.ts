@@ -159,7 +159,7 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
   // Special handling for egg dishes - check for 鸡蛋 (chicken egg) as a complete unit
   const hasEggIndicators = name.includes('蛋') || name.includes('鸡蛋');
   
-  // Check for meat indicators, but exclude cases where 鸡 is part of 鸡蛋
+  // Check for meat indicators, but exclude special cases
   const meatIndicators = getAllMeatIndicators();
   const hasMeatInName = meatIndicators.some((indicator) => {
     const meatLower = indicator.toLowerCase();
@@ -167,6 +167,12 @@ function checkVegetarian(dishName: string, ingredients: string[]): boolean {
     // Special case: if it's "鸡" but part of "鸡蛋", don't count as meat
     if (meatLower === '鸡' && name.includes('鸡蛋')) {
       console.log(`  -> Ignoring "鸡" in "鸡蛋" context`);
+      return false;
+    }
+    
+    // Special case: if it's "鱼" but part of "鱼香", don't count as meat
+    if (meatLower === '鱼' && name.includes('鱼香')) {
+      console.log(`  -> Ignoring "鱼" in "鱼香" context`);
       return false;
     }
     

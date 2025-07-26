@@ -815,6 +815,12 @@ Return JSON format with exactly what you see:
       // Set target language to English by default
       setTargetLanguage("en");
 
+      // Skip legacy parsing if we already have dishes from GPT-4o
+      if (parsedDishes.length > 0) {
+        console.log("Skipping legacy parsing - GPT-4o already provided", parsedDishes.length, "dishes");
+        return;
+      }
+
       const dishes = parseOcrText(ocrText, detected);
       console.log("Parsed dishes:", dishes);
 

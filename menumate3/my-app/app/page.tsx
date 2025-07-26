@@ -357,48 +357,49 @@ export default function MenuTranslatorDesign() {
   // GPT-4 Vision smart parsing function
   const trySmartParsing = async (imageFile: File) => {
     try {
-      // Convert image to base64
-      const base64Image = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(',')[1];
+      // Compress and convert image to base64 for faster processing
+      const compressedImage = await new Promise<string>((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = document.createElement('img');
+        
+        img.onload = () => {
+          // Resize to max 1024px width for faster processing
+          const maxWidth = 1024;
+          const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
+          canvas.width = img.width * ratio;
+          canvas.height = img.height * ratio;
+          
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
           resolve(base64);
         };
-        reader.onerror = reject;
-        reader.readAsDataURL(imageFile);
+        
+        img.onerror = reject;
+        img.src = URL.createObjectURL(imageFile);
       });
 
       const response = await fetch('/api/smart-parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          image: base64Image,
-          prompt: `
-          You are an expert menu parser. Extract ALL menu items from this image.
-          
-          RULES:
-          1. ONLY extract actual food/drink items that customers can order
-          2. IGNORE: promotional text, restaurant info, categories, descriptions, instructions, headers
-          3. For each dish, extract: name, price (if visible), category (appetizer/main/dessert/drink/rice/vegetable/soup)
-          4. Detect spice level (0-4) and if vegetarian based on ingredients
-          5. Be very selective - only include real dishes, not promotional text or descriptions
-          
-          Return JSON in this exact format:
-          {
-            "dishes": [
-              {
-                "name": "Pad Thai",
-                "price": "120 บาท", 
-                "category": "main",
-                "spiceLevel": 2,
-                "isVegetarian": false,
-                "confidence": 0.95
-              }
-            ],
-            "language": "th",
-            "totalDishes": 12
-          }
-          `
+          image: compressedImage,
+          prompt: `Extract ALL menu items from this image as JSON.
+
+RULES:
+1. Extract EVERY orderable dish/food item visible
+2. IGNORE: headers, restaurant info, promotional text
+3. For each dish include: name, price (if visible), category, spiceLevel (0-4), isVegetarian
+4. Be thorough - extract all dishes, not just a few
+
+Return JSON format:
+{
+  "dishes": [
+    {"name": "Pad Thai", "price": "120 บาท", "category": "main", "spiceLevel": 2, "isVegetarian": false, "confidence": 0.95}
+  ],
+  "language": "th",
+  "totalDishes": 12
+}`
         })
       });
 
@@ -453,7 +454,13 @@ export default function MenuTranslatorDesign() {
               ingredients: []
             }));
 
+            // Set OCR text for translation system compatibility
+            const combinedText = smartResult.dishes.map(dish => 
+              `${dish.name} ${dish.price || ''}`
+            ).join('\n');
+            
             setParsedDishes(dishes);
+            setOcrText(combinedText);
             setDetectedLanguage(smartResult.language);
             setCurrentScreen("results");
             return;

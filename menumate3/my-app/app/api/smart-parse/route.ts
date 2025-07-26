@@ -130,8 +130,8 @@ export async function POST(req: NextRequest) {
             ]
           }
         ],
-        max_tokens: 3000,
-        temperature: 0.1 // Low temperature for consistent extraction
+        max_tokens: 1500,
+        temperature: 0.3 // Balanced for speed and accuracy
       }),
     });
 

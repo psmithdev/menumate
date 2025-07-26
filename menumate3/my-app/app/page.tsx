@@ -364,14 +364,14 @@ export default function MenuTranslatorDesign() {
         const img = document.createElement('img');
         
         img.onload = () => {
-          // Resize to max 1024px width for faster processing
-          const maxWidth = 1024;
+          // Resize to max 800px width for faster processing
+          const maxWidth = 800;
           const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
           canvas.width = img.width * ratio;
           canvas.height = img.height * ratio;
           
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+          const base64 = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
           resolve(base64);
         };
         

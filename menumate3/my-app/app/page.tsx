@@ -354,6 +354,67 @@ export default function MenuTranslatorDesign() {
     }
   }, [parsedDishes, filters, applyFilters]);
 
+  // GPT-4 Vision smart parsing function
+  const trySmartParsing = async (imageFile: File) => {
+    try {
+      // Convert image to base64
+      const base64Image = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(imageFile);
+      });
+
+      const response = await fetch('/api/smart-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: base64Image,
+          prompt: `
+          You are an expert menu parser. Extract ALL menu items from this image.
+          
+          RULES:
+          1. ONLY extract actual food/drink items that customers can order
+          2. IGNORE: promotional text, restaurant info, categories, descriptions, instructions, headers
+          3. For each dish, extract: name, price (if visible), category (appetizer/main/dessert/drink/rice/vegetable/soup)
+          4. Detect spice level (0-4) and if vegetarian based on ingredients
+          5. Be very selective - only include real dishes, not promotional text or descriptions
+          
+          Return JSON in this exact format:
+          {
+            "dishes": [
+              {
+                "name": "Pad Thai",
+                "price": "120 บาท", 
+                "category": "main",
+                "spiceLevel": 2,
+                "isVegetarian": false,
+                "confidence": 0.95
+              }
+            ],
+            "language": "th",
+            "totalDishes": 12
+          }
+          `
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Smart parsing API failed:', response.statusText);
+        return null;
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Smart parsing error:', error);
+      return null;
+    }
+  };
+
   // Enhanced error handling for OCR
   useEffect(() => {
     if (currentScreen === "processing" && menuImage) {
@@ -363,6 +424,44 @@ export default function MenuTranslatorDesign() {
 
       const performOcr = async () => {
         try {
+          console.log('🚀 Starting smart menu parsing with GPT-4 Vision...');
+          
+          // Try GPT-4 Vision first (much more accurate)
+          const smartResult = await trySmartParsing(menuImage);
+          if (smartResult) {
+            console.log('✅ GPT-4 Vision parsing successful:', smartResult.totalDishes, 'dishes found');
+            
+            // Convert smart result to ParsedDish format
+            const dishes = smartResult.dishes.map((dish, index) => ({
+              id: `smart-dish-${index}`,
+              originalName: dish.name,
+              originalPrice: dish.price || "Price not detected",
+              translatedName: undefined,
+              translatedPrice: undefined,
+              description: `${dish.category ? `${dish.category.charAt(0).toUpperCase() + dish.category.slice(1)} - ` : ''}${dish.name}`,
+              tags: [dish.category || 'dish'].filter(Boolean),
+              isVegetarian: dish.isVegetarian || false,
+              isVegan: false,
+              isGlutenFree: false,
+              isDairyFree: false,
+              isNutFree: false,
+              spiceLevel: dish.spiceLevel || 0,
+              rating: 4.5,
+              time: "15 min",
+              calories: 300,
+              protein: "15g",
+              ingredients: []
+            }));
+
+            setParsedDishes(dishes);
+            setDetectedLanguage(smartResult.language);
+            setCurrentScreen("results");
+            return;
+          }
+
+          console.log('⚠️ Smart parsing failed, falling back to traditional OCR...');
+          
+          // Fallback to traditional OCR + regex parsing
           const formData = new FormData();
           formData.append("image", menuImage);
 

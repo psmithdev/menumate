@@ -149,9 +149,20 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('📝 Content received, length:', content.length);
+    console.log('📝 Raw content preview:', content.substring(0, 200) + '...');
+    
+    // Clean JSON response (remove markdown code blocks if present)
+    let cleanContent = content.trim();
+    if (cleanContent.startsWith('```json')) {
+      cleanContent = cleanContent.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanContent.startsWith('```')) {
+      cleanContent = cleanContent.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    console.log('🧹 Cleaned content preview:', cleanContent.substring(0, 200) + '...');
     
     // Parse JSON response
-    const parsedResult = JSON.parse(content);
+    const parsedResult = JSON.parse(cleanContent);
     console.log('✅ Parsed result:', { totalDishes: parsedResult.totalDishes });
     
     return NextResponse.json(parsedResult);

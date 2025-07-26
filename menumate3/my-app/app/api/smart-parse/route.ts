@@ -176,6 +176,36 @@ export async function POST(req: NextRequest) {
     try {
       parsedResult = JSON.parse(cleanContent);
       console.log('✅ Parsed result:', { totalDishes: parsedResult.totalDishes });
+      
+      // Validate result to prevent hallucinations
+      if (parsedResult.dishes) {
+        // Filter out absurd dishes
+        parsedResult.dishes = parsedResult.dishes.filter((dish: any) => {
+          const nameLength = dish.name?.length || 0;
+          const price = dish.price || '';
+          const priceNumber = parseInt(price.match(/\d+/)?.[0] || '0');
+          
+          // Reject dishes with absurd properties
+          const isValid = nameLength < 50 && 
+                         priceNumber < 200 && 
+                         !dish.name?.includes('ๆๆๆ') && // Reject repeated characters
+                         nameLength > 3; // Must have reasonable length
+          
+          if (!isValid) {
+            console.log('🚫 Rejected invalid dish:', dish.name);
+          }
+          return isValid;
+        });
+        
+        // Limit to maximum 20 dishes
+        if (parsedResult.dishes.length > 20) {
+          console.log('⚠️ Truncating to 20 dishes from', parsedResult.dishes.length);
+          parsedResult.dishes = parsedResult.dishes.slice(0, 20);
+        }
+        
+        parsedResult.totalDishes = parsedResult.dishes.length;
+        console.log('✅ Validated result:', { totalDishes: parsedResult.totalDishes });
+      }
     } catch (parseError) {
       console.error('❌ JSON parse error. Content length:', cleanContent.length);
       console.error('❌ Content preview:', cleanContent.substring(0, 500));

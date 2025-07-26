@@ -384,21 +384,23 @@ export default function MenuTranslatorDesign() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image: compressedImage,
-          prompt: `Extract ALL menu items from this image as JSON.
+          prompt: `Extract ONLY the menu items that are ACTUALLY VISIBLE in this image. Do NOT invent or hallucinate dishes.
 
-RULES:
-1. Extract EVERY orderable dish/food item visible
-2. IGNORE: headers, restaurant info, promotional text
-3. For each dish include: name, price (if visible), category, spiceLevel (0-4), isVegetarian
-4. Be thorough - extract all dishes, not just a few
+STRICT RULES:
+1. Extract ONLY dishes you can clearly see in the image
+2. Do NOT create variations or similar dishes
+3. Do NOT repeat dishes with minor modifications
+4. Maximum 20 dishes total
+5. Each dish name must be under 50 characters
+6. Prices must be realistic (under 200 บาท)
 
-Return JSON format:
+Return JSON format with exactly what you see:
 {
   "dishes": [
-    {"name": "Pad Thai", "price": "120 บาท", "category": "main", "spiceLevel": 2, "isVegetarian": false, "confidence": 0.95}
+    {"name": "ข้าวขาหมู", "price": "70 บาท", "category": "main", "spiceLevel": 0, "isVegetarian": false, "confidence": 0.95}
   ],
   "language": "th",
-  "totalDishes": 12
+  "totalDishes": 8
 }`
         })
       });

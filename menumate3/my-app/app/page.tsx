@@ -102,7 +102,7 @@ export default function MenuTranslatorDesign() {
       nutFree: false,
     },
     maxSpiceLevel: 4,
-    priceRange: { min: 5, max: 50 },
+    priceRange: { min: 0, max: 200 },
     sortBy: 'recommended' as 'recommended' | 'rating' | 'price' | 'time',
   });
   

@@ -37,7 +37,7 @@ const NON_DISH_PATTERNS = {
   restaurantNames: /(?:ร้าน|restaurant|cafe|coffee|shop|store|house|kitchen|food|court|center|market|plaza|mall|hall|อาหาร|ร้านอาหาร|ภัตตาคาร|โรงแรม|hotel)/i,
   
   // Menu categories and headers
-  categories: /(?:menu|เมนู|รายการ|หมวด|ประเภท|category|section|appetizer|main|course|dessert|drink|beverage|soup|salad|rice|noodle|curry|stir|fried|grilled|steamed|เครื่องดื่ม|น้ำ|ข้าว|ก๋วยเตี๋ยว|แกง|ผัด|ทอด|ย่าง|นึ่ง|อบ|ต้ม)/i,
+  categories: /(?:menu|เมนู|รายการ|หมวด|ประเภท|category|section|appetizer|main|course|dessert|drink|beverage|soup|salad|rice|noodle|curry|stir|fried|grilled|steamed|เครื่องดื่ม|น้ำ|ข้าว|ก๋วยเตี๋ยว|แกง|ผัด|ทอด|ย่าง|นึ่ง|อบ|ต้ม|รวม)/i,
   
   // Size labels only (without dish names)
   sizeLabelsOnly: /^(?:เล็ก|กลาง|ใหญ่|ขนาดเล็ก|ขนาดกลาง|ขนาดใหญ่|S|M|L|small|medium|large|regular|normal|special|jumbo|จัมโบ้|พิเศษ|ปกติ|ธรรมดา)(?:\s*[\/\-\s]\s*(?:เล็ก|กลาง|ใหญ่|ขนาดเล็ก|ขนาดกลาง|ขนาดใหญ่|S|M|L|small|medium|large|regular|normal|special|jumbo|จัมโบ้|พิเศษ|ปกติ|ธรรมดา))*\s*$/i,
@@ -60,8 +60,35 @@ const NON_DISH_PATTERNS = {
   // Only numbers or symbols
   numbersSymbolsOnly: /^[\d\s\-\+\*\/\(\)\.,:;!@#$%^&*=\[\]{}|\\<>?~`'"]*$/,
   
-  // Promotional text
-  promotional: /(?:promotion|โปรโมชั่น|discount|ส่วนลด|special|offer|free|ฟรี|new|ใหม่|hot|popular|recommended|แนะนำ|hit|best|seller|top|favorite|โปรด)/i
+  // Promotional text and marketing slogans
+  promotional: /(?:promotion|โปรโมชั่น|discount|ส่วนลด|special|offer|free|ฟรี|new|ใหม่|hot|popular|recommended|แนะนำ|hit|best|seller|top|favorite|โปรด|premium|พรีเมียม)/i,
+  
+  // Text in parentheses only (instructions, descriptions)
+  parenthesesOnly: /^\s*\([^)]*\)\s*$/,
+  
+  // Text with asterisks (promotional/historical text)
+  asteriskText: /^\s*\*.*$/,
+  
+  // Text with bullet points
+  bulletPoints: /^\s*[•·▪▫◦‣⁃]\s*.*|.*\s*[•·▪▫◦‣⁃]\s*$/,
+  
+  // Exclamatory promotional text
+  exclamatoryPromo: /^.*[!！]\s*$|^.*คิดดู[!！]?\s*$/,
+  
+  // Historical/story text patterns
+  historicalText: /(?:สมัย|โบราณ|เก่า|แต่ก่อน|ในอดีต|ประวัติ|เรื่องราว|ตำนาน)/i,
+  
+  // Brand names with special characters
+  brandNames: /(?:BY\s+|by\s+|โดย\s+).*|.*\s+(?:brand|แบรนด์)\s*$/i,
+  
+  // Incomplete words or fragments (less than 4 Thai characters and not complete words)
+  incompleteText: /^[ก-๙]{1,3}$|^[a-zA-Z]{1,3}$/,
+  
+  // Technical or style descriptions
+  styleDescriptions: /(?:ทรงเครื่อง|สไตล์|แบบ|รูปแบบ|วิธี|เทคนิค|ชาญ)/i,
+  
+  // Summary or total indicators
+  summaryText: /^(?:รวม|total|sum|ทั้งหมด|รวมทั้งหมด|สรุป).*$/i
 };
 
 // Function to check if a line is likely to be a dish

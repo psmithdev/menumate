@@ -55,6 +55,10 @@ type ParsedDish = {
   description?: string;
   tags: string[];
   isVegetarian: boolean;
+  isVegan?: boolean;
+  isGlutenFree?: boolean;
+  isDairyFree?: boolean;
+  isNutFree?: boolean;
   spiceLevel: number;
   rating?: number;
   time?: string;
@@ -78,7 +82,6 @@ export default function MenuTranslatorDesign() {
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [parsedDishes, setParsedDishes] = useState<ParsedDish[]>([]);
-  const [, setPreviewUrl] = useState<string | null>(null);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [targetLanguage, setTargetLanguage] = useState<string>("en");
   
@@ -198,17 +201,6 @@ export default function MenuTranslatorDesign() {
       }
     });
 
-    console.log(`\n=== FILTER DEBUG SUMMARY ===`);
-    console.log(`📊 Result: ${filteredDishes.length} of ${dishes.length} dishes passed filters`);
-    if (filteredDishes.length > 0) {
-      console.log(`✅ Passed dishes:`, filteredDishes.map(d => ({
-        name: d.originalName,
-        isVegetarian: d.isVegetarian,
-        isVegan: d.isVegan,
-        spiceLevel: d.spiceLevel
-      })));
-    }
-    console.log('=== FILTER DEBUG END ===\n');
 
     return filteredDishes;
   }, [filters, extractPriceNumber]);
@@ -216,15 +208,6 @@ export default function MenuTranslatorDesign() {
   // Update filtered dishes when parsedDishes or filters change
   useEffect(() => {
     if (parsedDishes.length > 0) {
-      console.log('Parsed dishes dietary properties:', parsedDishes.map(d => ({
-        name: d.originalName,
-        isVegetarian: d.isVegetarian,
-        isVegan: d.isVegan,
-        isGlutenFree: d.isGlutenFree,
-        isDairyFree: d.isDairyFree,
-        isNutFree: d.isNutFree,
-        tags: d.tags
-      })));
       const filtered = applyFilters(parsedDishes);
       setFilteredDishes(filtered);
     } else {
@@ -305,15 +288,13 @@ Return JSON format with exactly what you see:
 
       const performOcr = async () => {
         try {
-          console.log('🚀 Starting smart menu parsing with GPT-4 Vision...');
           
           // Try GPT-4 Vision first (much more accurate)
           const smartResult = await trySmartParsing(menuImage);
           if (smartResult) {
-            console.log('✅ GPT-4 Vision parsing successful:', smartResult.totalDishes, 'dishes found');
             
             // Convert smart result to ParsedDish format
-            const dishes = smartResult.dishes.map((dish, index) => ({
+            const dishes = smartResult.dishes.map((dish: any, index: number) => ({
               id: `smart-dish-${index}`,
               originalName: dish.name,
               originalPrice: dish.price || "Price not detected",
@@ -335,7 +316,7 @@ Return JSON format with exactly what you see:
             }));
 
             // Set OCR text for translation system compatibility
-            const combinedText = smartResult.dishes.map(dish => 
+            const combinedText = smartResult.dishes.map((dish: any) => 
               `${dish.name} ${dish.price || ''}`
             ).join('\n');
             
@@ -346,7 +327,6 @@ Return JSON format with exactly what you see:
             return;
           }
 
-          console.log('⚠️ Smart parsing failed, falling back to traditional OCR...');
           
           // Fallback to traditional OCR + regex parsing
           const formData = new FormData();
@@ -409,7 +389,6 @@ Return JSON format with exactly what you see:
           // Check cache first
           const cachedResult = TranslationCache.get(ocrText, targetLanguage);
           if (cachedResult) {
-            console.log("Using cached translation");
             setTranslatedText(cachedResult);
             setIsTranslating(false);
             return;
@@ -458,275 +437,16 @@ Return JSON format with exactly what you see:
     }
   }, [currentScreen, ocrText, targetLanguage]);
 
-  // Function to parse OCR text into structured dishes
-  const parseOcrText = (
-    text: string,
-    detectedLanguage: string = "en"
-  ): ParsedDish[] => {
-    const lines = text
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-    const dishes: ParsedDish[] = [];
 
-    // Use enhanced Thai price parsing for Thai language or fallback to legacy parsing
-    const isThaiLanguage = detectedLanguage === "th" || detectedLanguage === "thai";
-    
-    // Additional filtering for Thai menus to remove common non-dish lines
-    let filteredLines = lines;
-    if (isThaiLanguage) {
-      filteredLines = lines.filter((line, index) => {
-        // Skip lines that are likely headers/footers
-        if (index === 0 && line.match(/(?:ร้าน|restaurant|menu|เมนู)/i)) {
-          return false;
-        }
-        
-        // Skip lines that are just contact info or addresses
-        if (line.match(/(?:tel|phone|โทร|address|ที่อยู่|facebook|line|www|http)/i)) {
-          return false;
-        }
-        
-        // Skip lines that are just times or dates
-        if (line.match(/^\d{1,2}[:.-]\d{2}|(?:am|pm|โมง|open|close|เปิด|ปิด)$/i)) {
-          return false;
-        }
-        
-        // Skip very short lines that are likely not dishes
-        if (line.length < 4) {
-          return false;
-        }
-        
-        return true;
-      });
-    }
-    
-    if (isThaiLanguage) {
-      // Enhanced Thai price parsing
-      console.log("Filtered lines for Thai parsing:", filteredLines);
-      
-      filteredLines.forEach((line, index) => {
-        const parsedLine = parseThaiMenuLine(line);
-        console.log(`Line ${index}: "${line}" -> isDish: ${parsedLine.isDish}, isValid: ${parsedLine.isValid}, dishName: "${parsedLine.dishName}"`);
-        
-        // Only process lines that are identified as dishes
-        if (parsedLine.isDish && parsedLine.dishName) {
-          const analysis = analyzeDish(parsedLine.dishName, detectedLanguage);
-          
-          // Handle multiple sizes by creating separate dishes or combining prices
-          if (parsedLine.prices.length > 1) {
-            // Create a single dish with formatted multi-size pricing
-            const dish: ParsedDish = {
-              id: `dish-${index}`,
-              originalName: parsedLine.dishName,
-              originalPrice: formatAllPrices(parsedLine.prices),
-              translatedName: undefined,
-              translatedPrice: undefined,
-              description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
-              tags: analysis.tags,
-              isVegetarian: analysis.isVegetarian,
-              isVegan: analysis.isVegan,
-              isGlutenFree: analysis.isGlutenFree,
-              isDairyFree: analysis.isDairyFree,
-              isNutFree: analysis.isNutFree,
-              spiceLevel: analysis.spiceLevel,
-              rating: 4.5,
-              time: analysis.cookingTime,
-              calories: analysis.estimatedCalories,
-              protein: analysis.estimatedProtein,
-              ingredients: analysis.ingredients,
-            };
-            dishes.push(dish);
-          } else if (parsedLine.prices.length === 1) {
-            // Single price dish
-            const dish: ParsedDish = {
-              id: `dish-${index}`,
-              originalName: parsedLine.dishName,
-              originalPrice: parsedLine.prices[0].price,
-              translatedName: undefined,
-              translatedPrice: undefined,
-              description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
-              tags: analysis.tags,
-              isVegetarian: analysis.isVegetarian,
-              isVegan: analysis.isVegan,
-              isGlutenFree: analysis.isGlutenFree,
-              isDairyFree: analysis.isDairyFree,
-              isNutFree: analysis.isNutFree,
-              spiceLevel: analysis.spiceLevel,
-              rating: 4.5,
-              time: analysis.cookingTime,
-              calories: analysis.estimatedCalories,
-              protein: analysis.estimatedProtein,
-              ingredients: analysis.ingredients,
-            };
-            dishes.push(dish);
-          } else {
-            // No price detected, but valid dish name
-            const analysis = analyzeDish(parsedLine.dishName, detectedLanguage);
-            const dish: ParsedDish = {
-              id: `dish-${index}`,
-              originalName: parsedLine.dishName,
-              originalPrice: "Price not detected",
-              translatedName: undefined,
-              translatedPrice: undefined,
-              description: `Delicious ${parsedLine.dishName} prepared with authentic ingredients`,
-              tags: analysis.tags,
-              isVegetarian: analysis.isVegetarian,
-              isVegan: analysis.isVegan,
-              isGlutenFree: analysis.isGlutenFree,
-              isDairyFree: analysis.isDairyFree,
-              isNutFree: analysis.isNutFree,
-              spiceLevel: analysis.spiceLevel,
-              rating: 4.5,
-              time: analysis.cookingTime,
-              calories: analysis.estimatedCalories,
-              protein: analysis.estimatedProtein,
-              ingredients: analysis.ingredients,
-            };
-            dishes.push(dish);
-          }
-        }
-      });
-    } else {
-      // Legacy price parsing for non-Thai languages
-      const priceRegex =
-        /(?:[฿$€£])?\s?(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?/i;
-      const priceAtEndRegex =
-        /(.+?)\s{1,3}(\d{1,5}(?:[.,]\d{2})?)(?:\s?(?:บาท|baht|\.-|฿|$|€|£))?$/i;
-      const justNumberRegex = /^\d{1,5}(?:[.,]\d{2})?$/;
-
-      let lastDish: ParsedDish | null = null;
-
-      lines.forEach((line, index) => {
-        // 1. Price at end of line (with or without currency/baht)
-        let match = priceAtEndRegex.exec(line);
-        if (match) {
-          const name = match[1].trim();
-          const price = match[2] + (line.includes("บาท") ? " บาท" : "");
-          const analysis = analyzeDish(name, detectedLanguage);
-          const dish: ParsedDish = {
-            id: `dish-${index}`,
-            originalName: name,
-            originalPrice: price,
-            translatedName: undefined,
-            translatedPrice: undefined,
-            description: `Delicious ${name} prepared with authentic ingredients`,
-            tags: analysis.tags,
-            isVegetarian: analysis.isVegetarian,
-            isVegan: analysis.isVegan,
-            isGlutenFree: analysis.isGlutenFree,
-            isDairyFree: analysis.isDairyFree,
-            isNutFree: analysis.isNutFree,
-            spiceLevel: analysis.spiceLevel,
-            rating: 4.5,
-            time: analysis.cookingTime,
-            calories: analysis.estimatedCalories,
-            protein: analysis.estimatedProtein,
-            ingredients: analysis.ingredients,
-          };
-          dishes.push(dish);
-          lastDish = dish;
-          return;
-        }
-
-        // 2. Price at start of line (rare, but possible)
-        match = priceRegex.exec(line);
-        if (match && line.startsWith(match[0])) {
-          // If previous dish exists, assign price to it
-          if (lastDish && lastDish.originalPrice === "Price not detected") {
-            lastDish.originalPrice =
-              match[1] + (line.includes("บาท") ? " บาท" : "");
-          }
-          return;
-        }
-
-        // 3. Line is just a number (likely a price for previous dish)
-        if (justNumberRegex.test(line)) {
-          if (lastDish && lastDish.originalPrice === "Price not detected") {
-            lastDish.originalPrice = line;
-          }
-          return;
-        }
-
-        // 4. Line contains only a name (or price not detected)
-        const analysis = analyzeDish(line, detectedLanguage);
-        const dish: ParsedDish = {
-          id: `dish-${index}`,
-          originalName: line,
-          originalPrice: "Price not detected",
-          translatedName: undefined,
-          translatedPrice: undefined,
-          description: `Delicious ${line} prepared with authentic ingredients`,
-          tags: analysis.tags,
-          isVegetarian: analysis.isVegetarian,
-          isVegan: analysis.isVegan,
-          isGlutenFree: analysis.isGlutenFree,
-          isDairyFree: analysis.isDairyFree,
-          isNutFree: analysis.isNutFree,
-          spiceLevel: analysis.spiceLevel,
-          rating: 4.5,
-          time: analysis.cookingTime,
-          calories: analysis.estimatedCalories,
-          protein: analysis.estimatedProtein,
-          ingredients: analysis.ingredients,
-        };
-        dishes.push(dish);
-        lastDish = dish;
-      });
-    }
-
-    return dishes;
-  };
-
-  // Update parsed dishes when OCR text changes
+  // Update language detection when OCR text changes
   useEffect(() => {
     if (ocrText) {
-      // Detect language from OCR text
+      // Detect language from OCR text for translation purposes
       const detected = detectLanguage(ocrText);
-      console.log(
-        "Detected language:",
-        detected,
-        "for text sample:",
-        ocrText.substring(0, 100)
-      );
       setDetectedLanguage(detected);
-
+      
       // Set target language to English by default
       setTargetLanguage("en");
-
-      // Skip legacy parsing if we already have dishes from GPT-4o
-      if (parsedDishes.length > 0) {
-        console.log("Skipping legacy parsing - GPT-4o already provided", parsedDishes.length, "dishes");
-        return;
-      }
-
-      const dishes = parseOcrText(ocrText, detected);
-      console.log("Parsed dishes:", dishes);
-
-      // If no dishes were parsed, create a fallback dish from the OCR text
-      if (dishes.length === 0 && ocrText.trim()) {
-        console.log("No dishes parsed, creating fallback dish");
-        const fallbackDish: ParsedDish = {
-          id: "fallback-dish",
-          originalName: ocrText.split("\n")[0] || "Menu Item",
-          originalPrice: "Price not detected",
-          description: "Menu item from your uploaded image",
-          tags: ["Menu Item"],
-          isVegetarian: false,
-          isVegan: false,
-          isGlutenFree: false,
-          isDairyFree: false,
-          isNutFree: false,
-          spiceLevel: 0,
-          rating: 4.0,
-          time: "15 min",
-          calories: 300,
-          protein: "20g",
-          ingredients: ["Ingredients not specified"],
-        };
-        setParsedDishes([fallbackDish]);
-      } else {
-        setParsedDishes(dishes);
-      }
     }
   }, [ocrText]);
 
@@ -843,19 +563,16 @@ Return JSON format with exactly what you see:
       // Validate file type
       if (!file.type.startsWith("image/")) {
         setCameraError("Please select a valid image file.");
-        setPreviewUrl(null);
         return;
       }
 
       // Validate file size (e.g., max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         setCameraError("Image must be less than 5MB.");
-        setPreviewUrl(null);
         return;
       }
 
       setCameraError(null);
-      setPreviewUrl(URL.createObjectURL(file));
 
       // Analyze image quality and preprocess if needed
       try {
@@ -863,7 +580,6 @@ Return JSON format with exactly what you see:
         let processedFile = file;
 
         if (quality.needsPreprocessing) {
-          console.log("Image needs preprocessing:", quality);
           processedFile = await preprocessImage(file, {
             contrast: quality.isLowContrast ? 1.3 : 1.1,
             brightness: quality.isDark ? 1.2 : 1.0,
@@ -1123,15 +839,6 @@ Return JSON format with exactly what you see:
               </div>
               <div className="flex gap-2">
                 <Button
-                  variant={isValidationMode ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setIsValidationMode(!isValidationMode)}
-                  className="rounded-full"
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  {isValidationMode ? "Exit Validation" : "Validate Dishes"}
-                </Button>
-                <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentScreen("share")}
@@ -1145,7 +852,6 @@ Return JSON format with exactly what you see:
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    console.log('Filter button clicked, navigating to filters screen');
                     setCurrentScreen("filters");
                   }}
                   className="rounded-full"
@@ -1228,47 +934,6 @@ Return JSON format with exactly what you see:
           </div>
         </div>
 
-        {/* Validation Summary */}
-        {isValidationMode && (
-          <div className="p-4 bg-blue-50 border-b border-blue-200">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-blue-900 mb-2">Dish Validation Mode</h3>
-              <div className="flex justify-center gap-6 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span>Valid Dishes: {Object.values(validatedDishes).filter(v => v === true).length}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span>Invalid Items: {Object.values(validatedDishes).filter(v => v === false).length}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                  <span>Unvalidated: {filteredDishes.length - Object.keys(validatedDishes).length}</span>
-                </div>
-              </div>
-              <div className="mt-3">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    const validDishes = filteredDishes.filter(dish => validatedDishes[dish.id] === true);
-                    const invalidItems = filteredDishes.filter(dish => validatedDishes[dish.id] === false);
-                    console.log('🎯 VALIDATION SUMMARY:');
-                    console.log('✅ Valid dishes:', validDishes.map(d => d.originalName));
-                    console.log('❌ Invalid items:', invalidItems.map(d => d.originalName));
-                    
-                    // Apply validation filters to improve parsing
-                    setParsedDishes(validDishes);
-                    setIsValidationMode(false);
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  Apply Validation & Train Parser
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* OCR Results Section */}
         {ocrText && (
@@ -1379,41 +1044,10 @@ Return JSON format with exactly what you see:
                   <DishCard 
                     dish={dish} 
                     onClick={() => {
-                      if (!isValidationMode) {
-                        console.log('Dish clicked:', dish.originalName);
-                        setSelectedDish(dish);
-                        setCurrentScreen("dish-detail");
-                      }
+                      setSelectedDish(dish);
+                      setCurrentScreen("dish-detail");
                     }}
                   />
-                  
-                  {/* Validation Controls Overlay */}
-                  {isValidationMode && (
-                    <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center gap-4">
-                      <Button
-                        variant={validatedDishes[dish.id] === true ? "default" : "secondary"}
-                        size="lg"
-                        onClick={() => {
-                          console.log(`✅ Marking "${dish.originalName}" as VALID dish`);
-                          setValidatedDishes(prev => ({ ...prev, [dish.id]: true }));
-                        }}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        ✅ Valid Dish
-                      </Button>
-                      <Button
-                        variant={validatedDishes[dish.id] === false ? "default" : "secondary"}
-                        size="lg"
-                        onClick={() => {
-                          console.log(`❌ Marking "${dish.originalName}" as INVALID (not a dish)`);
-                          setValidatedDishes(prev => ({ ...prev, [dish.id]: false }));
-                        }}
-                        className="bg-red-600 hover:bg-red-700 text-white"
-                      >
-                        ❌ Not a Dish
-                      </Button>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -1693,7 +1327,6 @@ Return JSON format with exactly what you see:
   }
 
   if (currentScreen === "filters") {
-    console.log('Rendering filters screen with current filters:', filters);
     return (
       <div className="min-h-screen bg-white">
         {/* Header */}
@@ -1743,13 +1376,11 @@ Return JSON format with exactly what you see:
                   <button
                     onClick={() => {
                       const newValue = !filters.dietary[item.key];
-                      console.log(`Filter ${item.key} changed to:`, newValue);
                       setFilters(prev => {
                         const newFilters = {
                           ...prev,
                           dietary: { ...prev.dietary, [item.key]: newValue }
                         };
-                        console.log('New filter state:', newFilters);
                         return newFilters;
                       });
                     }}
@@ -1873,7 +1504,6 @@ Return JSON format with exactly what you see:
           <Button
             variant="outline"
             onClick={() => {
-              console.log('Reset filters clicked');
               setFilters({
                 dietary: {
                   vegetarian: false,

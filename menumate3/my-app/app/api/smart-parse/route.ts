@@ -2,14 +2,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   console.log('📥 Smart parse API called');
   
   try {
+    const parseStartTime = Date.now();
     const { image, prompt } = await req.json();
+    const parseTime = Date.now() - parseStartTime;
     console.log('📋 Request data received:', { 
       hasImage: !!image, 
       hasPrompt: !!prompt,
-      imageLength: image?.length || 0 
+      imageLength: image?.length || 0,
+      parseTime: `${parseTime}ms`
     });
 
     if (!image || !prompt) {
@@ -98,7 +102,8 @@ export async function POST(req: NextRequest) {
 
     console.log('🚀 Calling OpenAI GPT-4 Vision API...');
     
-    // Actual OpenAI API call
+    // Time the OpenAI API call
+    const apiStartTime = Date.now();
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -106,7 +111,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
@@ -119,7 +124,7 @@ export async function POST(req: NextRequest) {
                 type: "image_url",
                 image_url: {
                   url: `data:image/jpeg;base64,${image}`,
-                  detail: "high"
+                  detail: "low"
                 }
               }
             ]
@@ -130,7 +135,9 @@ export async function POST(req: NextRequest) {
       }),
     });
 
+    const apiTime = Date.now() - apiStartTime;
     console.log('📡 OpenAI API response status:', response.status, response.statusText);
+    console.log('⏱️ OpenAI API call took:', `${apiTime}ms`);
 
     if (!response.ok) {
       const errorData = await response.text();
@@ -138,8 +145,11 @@ export async function POST(req: NextRequest) {
       throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
     }
 
+    const jsonStartTime = Date.now();
     const data = await response.json();
+    const jsonTime = Date.now() - jsonStartTime;
     console.log('✅ OpenAI response received, choices:', data.choices?.length || 0);
+    console.log('⏱️ JSON parsing took:', `${jsonTime}ms`);
     
     const content = data.choices[0]?.message?.content;
 
@@ -161,9 +171,44 @@ export async function POST(req: NextRequest) {
     
     console.log('🧹 Cleaned content preview:', cleanContent.substring(0, 200) + '...');
     
-    // Parse JSON response
-    const parsedResult = JSON.parse(cleanContent);
-    console.log('✅ Parsed result:', { totalDishes: parsedResult.totalDishes });
+    // Parse JSON response with error handling
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(cleanContent);
+      console.log('✅ Parsed result:', { totalDishes: parsedResult.totalDishes });
+    } catch (parseError) {
+      console.error('❌ JSON parse error. Content length:', cleanContent.length);
+      console.error('❌ Content preview:', cleanContent.substring(0, 500));
+      console.error('❌ Content end preview:', cleanContent.substring(-200));
+      
+      // Try to fix incomplete JSON by adding closing brackets
+      let fixedContent = cleanContent;
+      if (!cleanContent.trim().endsWith('}')) {
+        // Count opening and closing brackets to balance
+        const openBraces = (cleanContent.match(/{/g) || []).length;
+        const closeBraces = (cleanContent.match(/}/g) || []).length;
+        const openBrackets = (cleanContent.match(/\[/g) || []).length;
+        const closeBrackets = (cleanContent.match(/]/g) || []).length;
+        
+        // Add missing closing brackets/braces
+        fixedContent += '}]'.repeat(Math.max(0, openBrackets - closeBrackets));
+        fixedContent += '}'.repeat(Math.max(0, openBraces - closeBraces));
+        
+        console.log('🔧 Attempting to fix JSON with:', fixedContent.substring(-100));
+        parsedResult = JSON.parse(fixedContent);
+      } else {
+        throw parseError;
+      }
+    }
+    
+    const totalTime = Date.now() - startTime;
+    console.log('🏁 Total API execution time:', `${totalTime}ms`);
+    console.log('📊 Performance breakdown:', {
+      requestParsing: `${parseTime}ms`,
+      openaiApiCall: `${apiTime}ms`,
+      responseProcessing: `${jsonTime}ms`,
+      total: `${totalTime}ms`
+    });
     
     return NextResponse.json(parsedResult);
 

@@ -87,6 +87,10 @@ export default function MenuTranslatorDesign() {
   const [, setPreviewUrl] = useState<string | null>(null);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [targetLanguage, setTargetLanguage] = useState<string>("en");
+  
+  // Validation mode state
+  const [isValidationMode, setIsValidationMode] = useState<boolean>(false);
+  const [validatedDishes, setValidatedDishes] = useState<{[key: string]: boolean}>({});
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -1127,6 +1131,15 @@ export default function MenuTranslatorDesign() {
               </div>
               <div className="flex gap-2">
                 <Button
+                  variant={isValidationMode ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setIsValidationMode(!isValidationMode)}
+                  className="rounded-full"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  {isValidationMode ? "Exit Validation" : "Validate Dishes"}
+                </Button>
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentScreen("share")}
@@ -1222,6 +1235,48 @@ export default function MenuTranslatorDesign() {
             </div>
           </div>
         </div>
+
+        {/* Validation Summary */}
+        {isValidationMode && (
+          <div className="p-4 bg-blue-50 border-b border-blue-200">
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">Dish Validation Mode</h3>
+              <div className="flex justify-center gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span>Valid Dishes: {Object.values(validatedDishes).filter(v => v === true).length}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span>Invalid Items: {Object.values(validatedDishes).filter(v => v === false).length}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                  <span>Unvalidated: {filteredDishes.length - Object.keys(validatedDishes).length}</span>
+                </div>
+              </div>
+              <div className="mt-3">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const validDishes = filteredDishes.filter(dish => validatedDishes[dish.id] === true);
+                    const invalidItems = filteredDishes.filter(dish => validatedDishes[dish.id] === false);
+                    console.log('🎯 VALIDATION SUMMARY:');
+                    console.log('✅ Valid dishes:', validDishes.map(d => d.originalName));
+                    console.log('❌ Invalid items:', invalidItems.map(d => d.originalName));
+                    
+                    // Apply validation filters to improve parsing
+                    setParsedDishes(validDishes);
+                    setIsValidationMode(false);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Apply Validation & Train Parser
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* OCR Results Section */}
         {ocrText && (
@@ -1328,15 +1383,46 @@ export default function MenuTranslatorDesign() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredDishes.map((dish) => (
-                <DishCard 
-                  key={dish.id} 
-                  dish={dish} 
-                  onClick={() => {
-                    console.log('Dish clicked:', dish.originalName);
-                    setSelectedDish(dish);
-                    setCurrentScreen("dish-detail");
-                  }}
-                />
+                <div key={dish.id} className="relative">
+                  <DishCard 
+                    dish={dish} 
+                    onClick={() => {
+                      if (!isValidationMode) {
+                        console.log('Dish clicked:', dish.originalName);
+                        setSelectedDish(dish);
+                        setCurrentScreen("dish-detail");
+                      }
+                    }}
+                  />
+                  
+                  {/* Validation Controls Overlay */}
+                  {isValidationMode && (
+                    <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center gap-4">
+                      <Button
+                        variant={validatedDishes[dish.id] === true ? "default" : "secondary"}
+                        size="lg"
+                        onClick={() => {
+                          console.log(`✅ Marking "${dish.originalName}" as VALID dish`);
+                          setValidatedDishes(prev => ({ ...prev, [dish.id]: true }));
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        ✅ Valid Dish
+                      </Button>
+                      <Button
+                        variant={validatedDishes[dish.id] === false ? "default" : "secondary"}
+                        size="lg"
+                        onClick={() => {
+                          console.log(`❌ Marking "${dish.originalName}" as INVALID (not a dish)`);
+                          setValidatedDishes(prev => ({ ...prev, [dish.id]: false }));
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                      >
+                        ❌ Not a Dish
+                      </Button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

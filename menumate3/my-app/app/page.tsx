@@ -21,7 +21,6 @@ import { Badge } from "@/components/ui/badge";
 import Image from "next/image";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import React, { useRef } from "react";
-import { analyzeDish } from "@/utils/dishParser";
 import {
   preprocessImage,
   analyzeImageQuality,
@@ -31,7 +30,6 @@ import {
   detectLanguage,
   getLanguageName,
 } from "@/utils/languages";
-import { parseThaiMenuLine, formatAllPrices } from "@/utils/thaiPriceParser";
 import { QRCodeSection } from "@/components/QRCodeSection";
 import { CartButton } from "@/components/CartButton";
 import { DishCard } from "@/components/dish-card";
@@ -68,10 +66,6 @@ type ParsedDish = {
 export default function MenuTranslatorDesign() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   
-  // Debug logging for screen changes
-  useEffect(() => {
-    console.log('Screen changed to:', currentScreen);
-  }, [currentScreen]);
   const [selectedDish, setSelectedDish] = useState<ParsedDish | null>(null);
   const [menuImage, setMenuImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,9 +82,6 @@ export default function MenuTranslatorDesign() {
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [targetLanguage, setTargetLanguage] = useState<string>("en");
   
-  // Validation mode state
-  const [isValidationMode, setIsValidationMode] = useState<boolean>(false);
-  const [validatedDishes, setValidatedDishes] = useState<{[key: string]: boolean}>({});
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -109,72 +100,6 @@ export default function MenuTranslatorDesign() {
   // Filtered dishes state
   const [filteredDishes, setFilteredDishes] = useState<ParsedDish[]>([]);
 
-  // DEVELOPMENT MODE: Auto-load test data when URL contains ?test=true
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('test') === 'true') {
-      console.log('🚀 DEVELOPMENT MODE: Loading test data...');
-      
-      // Mock Chinese menu OCR text from your actual menu
-      const mockOcrText = `5
-盖浇饭
-青椒肉丝
-香干肉丝
-蒜苗肉丝
-土豆肉丝
-茭白肉丝
-雪菜肉丝
-8 辣子白菜
-辣子肉丁
-鱼香肉丝
-香菇青菜
-韭菜炒蛋
-西红柿炒蛋
-茄子肉丝
-回锅肉
-青椒炒蛋
-青椒肉片
-宫爆鸡丁
-木耳肉片
-宫爆肉丁
-雪菜炒蛋
-香菇肉片
-莴笋肉片
-油焖茄子
-鱼香茄子
-麻婆豆腐
-辣子豆腐
-茭白肉片
-酸辣土豆丝 5 韭菜百叶
-鱼香肉丝盖浇饭
-西红柿蛋炒饭
-回锅肉盖浇饭
-325 25
-炒饭类
-雪菜肉丝炒饭
-西红柿鸡蛋炒饭
-青椒肉丝炒饭
-青椒牛肉炒饭
-雪菜大肠炒饭
-火腿肠炒饭
-鸡蛋炒面
-炒面类
-炒 肉丝炒面
-牛肉面
-大肠面
-青椒肉丝盖浇饭
-类 肉丝面
-鸡蛋面`;
-
-      // Set the OCR text and skip to results
-      setOcrText(mockOcrText);
-      setDetectedLanguage('zh');
-      setTargetLanguage('en');
-      setCurrentScreen('results');
-      
-      console.log('🎯 Test data loaded - jumped directly to results screen!');
-    }
-  }, []);
 
   // Enhanced function to extract price number from price string with multiple currency support
   const extractPriceNumber = useCallback((priceString: string): number => {
@@ -207,69 +132,23 @@ export default function MenuTranslatorDesign() {
 
   // Function to filter and sort dishes based on current filters
   const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
-    console.log('\n=== FILTER DEBUG START ===');
-    console.log('Input dishes:', dishes.length);
-    console.log('Active filters:', {
-      vegetarian: filters.dietary.vegetarian,
-      vegan: filters.dietary.vegan,
-      glutenFree: filters.dietary.glutenFree,
-      dairyFree: filters.dietary.dairyFree,
-      nutFree: filters.dietary.nutFree,
-      maxSpiceLevel: filters.maxSpiceLevel,
-      priceRange: filters.priceRange,
-      sortBy: filters.sortBy
-    });
 
-    const filteredDishes = dishes.filter((dish, index) => {
-      const debugInfo = {
-        index,
-        name: dish.originalName,
-        properties: {
-          isVegetarian: dish.isVegetarian,
-          isVegan: dish.isVegan,
-          isGlutenFree: dish.isGlutenFree,
-          isDairyFree: dish.isDairyFree,
-          isNutFree: dish.isNutFree,
-          spiceLevel: dish.spiceLevel
-        }
-      };
+    const filteredDishes = dishes.filter((dish) => {
 
-      // Dietary filters - Use the new boolean properties directly (handle undefined)
-      if (filters.dietary.vegetarian && !dish.isVegetarian) {
-        console.log(`❌ FILTERED OUT (vegetarian): ${dish.originalName} - isVegetarian: ${dish.isVegetarian}`);
-        return false;
-      }
-      if (filters.dietary.vegan && !dish.isVegan) {
-        console.log(`❌ FILTERED OUT (vegan): ${dish.originalName} - isVegan: ${dish.isVegan}`);
-        return false;
-      }
-      if (filters.dietary.glutenFree && !dish.isGlutenFree) {
-        console.log(`❌ FILTERED OUT (gluten-free): ${dish.originalName} - isGlutenFree: ${dish.isGlutenFree}`);
-        return false;
-      }
-      if (filters.dietary.dairyFree && !dish.isDairyFree) {
-        console.log(`❌ FILTERED OUT (dairy-free): ${dish.originalName} - isDairyFree: ${dish.isDairyFree}`);
-        return false;
-      }
-      if (filters.dietary.nutFree && !dish.isNutFree) {
-        console.log(`❌ FILTERED OUT (nut-free): ${dish.originalName} - isNutFree: ${dish.isNutFree}`);
-        return false;
-      }
+      // Dietary filters
+      if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
+      if (filters.dietary.vegan && !dish.isVegan) return false;
+      if (filters.dietary.glutenFree && !dish.isGlutenFree) return false;
+      if (filters.dietary.dairyFree && !dish.isDairyFree) return false;
+      if (filters.dietary.nutFree && !dish.isNutFree) return false;
 
       // Spice level filter
-      if (dish.spiceLevel > filters.maxSpiceLevel) {
-        console.log(`❌ FILTERED OUT (spice level): ${dish.originalName} - spiceLevel: ${dish.spiceLevel} > max: ${filters.maxSpiceLevel}`);
-        return false;
-      }
+      if (dish.spiceLevel > filters.maxSpiceLevel) return false;
 
       // Price range filter
       const price = extractPriceNumber(dish.originalPrice);
-      if (price > 0 && (price < filters.priceRange.min || price > filters.priceRange.max)) {
-        console.log(`❌ FILTERED OUT (price): ${dish.originalName} - price: ${price} not in range: ${filters.priceRange.min}-${filters.priceRange.max}`);
-        return false;
-      }
+      if (price > 0 && (price < filters.priceRange.min || price > filters.priceRange.max)) return false;
 
-      console.log(`✅ PASSED: ${dish.originalName}`, debugInfo.properties);
       return true;
     });
 
@@ -347,7 +226,6 @@ export default function MenuTranslatorDesign() {
         tags: d.tags
       })));
       const filtered = applyFilters(parsedDishes);
-      console.log('Filtering applied:', filtered.length, 'of', parsedDishes.length, 'dishes match current filters');
       setFilteredDishes(filtered);
     } else {
       setFilteredDishes([]);

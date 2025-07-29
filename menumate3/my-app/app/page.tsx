@@ -33,6 +33,7 @@ import {
 import { QRCodeSection } from "@/components/QRCodeSection";
 import { CartButton } from "@/components/CartButton";
 import { DishCard } from "@/components/dish-card";
+import { parseMenuWithAI } from "@/utils/smartMenuParser";
 
 type Screen =
   | "welcome"
@@ -218,63 +219,12 @@ export default function MenuTranslatorDesign() {
   // GPT-4 Vision smart parsing function
   const trySmartParsing = async (imageFile: File) => {
     try {
-      // Compress and convert image to base64 for faster processing
-      const compressedImage = await new Promise<string>((resolve, reject) => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = document.createElement('img');
-        
-        img.onload = () => {
-          // Resize to max 1000px width for better OCR accuracy
-          const maxWidth = 1000;
-          const ratio = Math.min(maxWidth / img.width, maxWidth / img.height);
-          canvas.width = img.width * ratio;
-          canvas.height = img.height * ratio;
-          
-          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const base64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
-          resolve(base64);
-        };
-        
-        img.onerror = reject;
-        img.src = URL.createObjectURL(imageFile);
-      });
-
-      const response = await fetch('/api/smart-parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: compressedImage,
-          prompt: `Extract ONLY the menu items that are ACTUALLY VISIBLE in this image. Do NOT invent or hallucinate dishes.
-
-STRICT RULES:
-1. Extract ONLY dishes you can clearly see in the image
-2. Do NOT create variations or similar dishes
-3. Do NOT repeat dishes with minor modifications
-4. Maximum 20 dishes total
-5. Each dish name must be under 50 characters
-6. Prices must be realistic (under 200 บาท)
-
-Return JSON format with exactly what you see:
-{
-  "dishes": [
-    {"name": "ข้าวขาหมู", "price": "70 บาท", "category": "main", "spiceLevel": 0, "isVegetarian": false, "confidence": 0.95}
-  ],
-  "language": "th",
-  "totalDishes": 8
-}`
-        })
-      });
-
-      if (!response.ok) {
-        console.error('Smart parsing API failed:', response.statusText);
-        return null;
-      }
-
-      const result = await response.json();
+      console.log('🚀 Using improved smart menu parser...');
+      const result = await parseMenuWithAI(imageFile);
+      console.log('✅ Smart parsing result:', result);
       return result;
     } catch (error) {
-      console.error('Smart parsing error:', error);
+      console.error('❌ Smart parsing failed:', error);
       return null;
     }
   };

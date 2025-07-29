@@ -31,28 +31,26 @@ export async function parseMenuWithAI(imageFile: File): Promise<SmartMenuResult>
     const base64Image = await fileToBase64(imageFile);
     
     const prompt = `
-    You are an expert menu parser. Extract ALL menu items from this image.
+    You are looking at a restaurant menu. Your job is to extract dish names and prices into a structured table. Only include what is clearly readable in the image. Do not invent or guess missing items. Preserve the original order if possible.
     
-    RULES:
-    1. ONLY extract actual food/drink items that customers can order
-    2. IGNORE: promotional text, restaurant info, categories, descriptions, instructions
-    3. For each dish, extract: name, price (if visible), category (appetizer/main/dessert/drink)
-    4. Detect spice level (0-4) and if vegetarian based on ingredients
+    For each dish you can clearly see:
+    - Extract the exact name as written
+    - Extract the price if visible (keep original currency/format)
+    - Estimate category: appetizer, main, dessert, drink, or other
+    - Rate your confidence (0-1) for each item
     
-    Return JSON in this exact format:
+    Return JSON in this format:
     {
       "dishes": [
         {
-          "name": "Pad Thai",
-          "price": "120 บาท", 
+          "name": "...",
+          "price": "...",
           "category": "main",
-          "spiceLevel": 2,
-          "isVegetarian": false,
           "confidence": 0.95
         }
       ],
-      "language": "th",
-      "totalDishes": 12
+      "language": "detected_language_code",
+      "totalDishes": number_of_dishes
     }
     `;
 

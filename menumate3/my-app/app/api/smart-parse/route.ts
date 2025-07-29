@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
     console.log("🚀 Calling OpenAI GPT-4 Vision API...");
     console.log("📝 Prompt being sent:", prompt.substring(0, 200) + "...");
     console.log("🖼️ Image data length:", image.length, "characters");
+    console.log("📊 Performance baseline: ~17-20s expected, targeting <10s");
 
     // Time the OpenAI API call
     const apiStartTime = Date.now();
@@ -135,8 +136,9 @@ export async function POST(req: NextRequest) {
             ],
           },
         ],
-        max_tokens: 2500,
-        temperature: 0.3, // Balanced for speed and accuracy
+        max_tokens: 1500, // Reduced for faster response with simplified prompt
+        temperature: 0.1, // Lower temperature for faster, more consistent output
+        stream: false, // Keep false for now - streaming requires different handling
       }),
     });
 
@@ -147,6 +149,15 @@ export async function POST(req: NextRequest) {
       response.statusText
     );
     console.log("⏱️ OpenAI API call took:", `${apiTime}ms`);
+    
+    // Performance analysis
+    if (apiTime > 15000) {
+      console.log("🐌 SLOW: API took >15s - check image size & network");
+    } else if (apiTime > 10000) {
+      console.log("⚠️ MODERATE: API took >10s - room for improvement");
+    } else {
+      console.log("⚡ FAST: API took <10s - good performance!");
+    }
 
     if (!response.ok) {
       const errorData = await response.text();
@@ -173,7 +184,14 @@ export async function POST(req: NextRequest) {
     }
 
     console.log("📝 Content received, length:", content.length);
-    console.log("📝 Raw content preview:", content.substring(0, 500) + "...");
+    console.log("📝 Raw content preview:", content.substring(0, 300) + "...");
+    
+    // Size analysis
+    if (content.length > 3000) {
+      console.log("📏 Large response - could be optimized");
+    } else {
+      console.log("📏 Compact response - good size");
+    }
     
     // Log token usage if available
     if (data.usage) {

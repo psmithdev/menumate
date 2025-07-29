@@ -30,44 +30,20 @@ export async function parseMenuWithAI(imageFile: File): Promise<SmartMenuResult>
     // Convert image to base64
     const base64Image = await fileToBase64(imageFile);
     
-    const prompt = `
-    You are an expert at reading restaurant menus. Carefully examine this entire menu image and systematically extract EVERY food and drink item that customers can order.
+    const prompt = `Extract clearly visible Thai dish names and prices from this menu image. Respond in raw JSON only.
 
-    SCAN THE ENTIRE IMAGE:
-    - Look at all sections of the menu (top, bottom, left, right, center)
-    - Read all text in any language (Thai, English, Chinese, etc.)
-    - Don't miss items in different sections or categories
-    - Include items with and without visible prices
-    - Look for items in small text or side areas
-
-    FOR EACH ITEM YOU FIND:
-    - Extract the exact dish name as written (preserve original language)
-    - Extract the price if visible (keep exact format like "120/220 บาท" or "60 บาท")
-    - If no price visible, use "Price not shown"
-    - Assign category based on the menu section or item type
-    - Rate confidence 0.8-1.0 for clear items, 0.6-0.7 for partially visible
-
-    COMPREHENSIVE EXTRACTION:
-    Be thorough - extract every single item you can see, even if:
-    - Text is small or partially obscured
-    - Item appears in a different section
-    - Price format is unusual (ranges, multiple options)
-    - Mixed languages are used
-
-    Return JSON with ALL items found:
+{
+  "dishes": [
     {
-      "dishes": [
-        {
-          "name": "exact dish name as written",
-          "price": "exact price format or 'Price not shown'",
-          "category": "rice/noodles/soup/appetizer/main/dessert/drink/side",
-          "confidence": 0.95
-        }
-      ],
-      "language": "th",
-      "totalDishes": total_count
+      "name": "dish name",
+      "price": "price or Price not shown",
+      "category": "main/side/soup/rice/drink",
+      "confidence": 0.95
     }
-    `;
+  ],
+  "language": "th",
+  "totalDishes": 0
+}`;
 
     // Call OpenAI API
     const response = await fetch('/api/smart-parse', {
@@ -127,13 +103,45 @@ export async function parseMenuMultiAPI(imageFile: File): Promise<SmartMenuResul
 // Helper functions
 async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1];
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      // Cap at 1000px width as recommended
+      const maxWidth = 1000;
+      const maxHeight = 1000;
+      
+      let { width, height } = img;
+      
+      // Calculate optimal dimensions
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+      
+      // Clear canvas and draw image (strips EXIF automatically)
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Convert to optimized JPEG with 85% quality for best size/quality balance
+      const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+      
+      console.log(`📷 Image optimized: ${file.size} bytes → ~${Math.round(base64.length * 0.75)} bytes`);
       resolve(base64);
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
   });
 }
 

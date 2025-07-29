@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
+      signal: AbortSignal.timeout(30000), // 30s timeout
       body: JSON.stringify({
         model: "gpt-4o",
         messages: [
@@ -130,15 +131,16 @@ export async function POST(req: NextRequest) {
                 type: "image_url",
                 image_url: {
                   url: `data:image/jpeg;base64,${image}`,
-                  detail: "high",
+                  detail: "low", // Use low detail for 2-3x faster processing
                 },
               },
             ],
           },
         ],
-        max_tokens: 1500, // Reduced for faster response with simplified prompt
-        temperature: 0.1, // Lower temperature for faster, more consistent output
+        max_tokens: 1000, // Further reduced - we only need ~700 tokens based on results
+        temperature: 0, // Lowest possible for maximum speed
         stream: false, // Keep false for now - streaming requires different handling
+        top_p: 0.1, // Add top_p to reduce sampling complexity
       }),
     });
 

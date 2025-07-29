@@ -133,8 +133,8 @@ async function fileToBase64(file: File): Promise<string> {
       ctx.clearRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
       
-      // Convert to optimized JPEG with 85% quality for best size/quality balance
-      const base64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+      // Convert to optimized JPEG with 80% quality for maximum compression
+      const base64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
       
       console.log(`📷 Image optimized: ${file.size} bytes → ~${Math.round(base64.length * 0.75)} bytes`);
       resolve(base64);

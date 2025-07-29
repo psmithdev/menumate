@@ -137,10 +137,11 @@ export async function POST(req: NextRequest) {
             ],
           },
         ],
-        max_tokens: 1000, // Further reduced - we only need ~700 tokens based on results
-        temperature: 0, // Lowest possible for maximum speed
+        max_tokens: 1500, // Increase back to prevent JSON truncation
+        temperature: 0, // Lowest possible for maximum speed  
         stream: false, // Keep false for now - streaming requires different handling
         top_p: 0.1, // Add top_p to reduce sampling complexity
+        frequency_penalty: 0.5, // Prevent repetitive hallucinations
       }),
     });
 
@@ -234,22 +235,36 @@ export async function POST(req: NextRequest) {
           console.log(`  ${index + 1}. "${dish.name}" - ${dish.price}`);
         });
         
-        // Filter out absurd dishes
+        // Filter out absurd dishes and hallucinations
         const originalCount = parsedResult.dishes.length;
         parsedResult.dishes = parsedResult.dishes.filter((dish: any) => {
           const nameLength = dish.name?.length || 0;
           const price = dish.price || "";
           const priceNumber = parseInt(price.match(/\d+/)?.[0] || "0");
+          const dishName = dish.name?.toLowerCase() || "";
+
+          // Detect hallucination patterns
+          const isHallucination = 
+            dishName.includes("พิเศษ a") || 
+            dishName.includes("พิเศษ b") ||
+            dishName.includes("พิเศษ c") ||
+            dishName.includes("พิเศษ d") ||
+            dishName.includes("พิเศษ e") ||
+            dishName.includes("พิเศษ f") ||
+            dishName.includes("พิเศษ g") ||
+            dishName.match(/พิเศษ[abcdefg]/i) ||
+            dishName.includes("พิเศษพิเศษ");
 
           // Reject dishes with absurd properties
           const isValid =
             nameLength < 100 &&
             priceNumber < 1000 && // Allow higher prices for premium dishes
             !dish.name?.includes("ๆๆๆ") && // Reject repeated characters
-            nameLength > 2; // Allow shorter dish names
+            nameLength > 2 && // Allow shorter dish names
+            !isHallucination; // Reject obvious hallucinations
 
           if (!isValid) {
-            console.log("🚫 Rejected invalid dish:", dish.name);
+            console.log("🚫 Rejected invalid/hallucinated dish:", dish.name);
           }
           return isValid;
         });

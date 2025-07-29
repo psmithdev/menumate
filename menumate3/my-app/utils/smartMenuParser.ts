@@ -30,20 +30,18 @@ export async function parseMenuWithAI(imageFile: File): Promise<SmartMenuResult>
     // Convert image to base64
     const base64Image = await fileToBase64(imageFile);
     
-    const prompt = `Extract clearly visible Thai dish names and prices from this menu image. Respond in raw JSON only.
+    const prompt = `Look at this Thai menu image. Extract ONLY the dish names and prices you can actually see written on the menu. Do not invent or create variations.
 
+Return exactly this JSON format:
 {
   "dishes": [
-    {
-      "name": "dish name",
-      "price": "price or Price not shown",
-      "category": "main/side/soup/rice/drink",
-      "confidence": 0.95
-    }
+    {"name": "exact dish name from menu", "price": "exact price from menu", "category": "main", "confidence": 0.95}
   ],
   "language": "th",
-  "totalDishes": 0
-}`;
+  "totalDishes": 5
+}
+
+Extract only what is clearly visible. Stop after finding all real menu items.`;
 
     // Call OpenAI API
     const response = await fetch('/api/smart-parse', {

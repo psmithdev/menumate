@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
             ],
           },
         ],
-        max_tokens: 1500,
+        max_tokens: 2500,
         temperature: 0.3, // Balanced for speed and accuracy
       }),
     });
@@ -209,7 +209,13 @@ export async function POST(req: NextRequest) {
 
       // Validate result to prevent hallucinations
       if (parsedResult.dishes) {
+        console.log("🔍 Raw dishes found:", parsedResult.dishes.length);
+        parsedResult.dishes.forEach((dish: any, index: number) => {
+          console.log(`  ${index + 1}. "${dish.name}" - ${dish.price}`);
+        });
+        
         // Filter out absurd dishes
+        const originalCount = parsedResult.dishes.length;
         parsedResult.dishes = parsedResult.dishes.filter((dish: any) => {
           const nameLength = dish.name?.length || 0;
           const price = dish.price || "";
@@ -217,10 +223,10 @@ export async function POST(req: NextRequest) {
 
           // Reject dishes with absurd properties
           const isValid =
-            nameLength < 50 &&
-            priceNumber < 200 &&
+            nameLength < 100 &&
+            priceNumber < 1000 && // Allow higher prices for premium dishes
             !dish.name?.includes("ๆๆๆ") && // Reject repeated characters
-            nameLength > 3; // Must have reasonable length
+            nameLength > 2; // Allow shorter dish names
 
           if (!isValid) {
             console.log("🚫 Rejected invalid dish:", dish.name);
@@ -237,8 +243,10 @@ export async function POST(req: NextRequest) {
           parsedResult.dishes = parsedResult.dishes.slice(0, 20);
         }
 
+        console.log(`🎯 Filtering: ${originalCount} → ${parsedResult.dishes.length} dishes after validation`);
+        
         parsedResult.totalDishes = parsedResult.dishes.length;
-        console.log("✅ Validated result:", {
+        console.log("✅ Final result:", {
           totalDishes: parsedResult.totalDishes,
         });
       }

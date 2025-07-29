@@ -31,26 +31,41 @@ export async function parseMenuWithAI(imageFile: File): Promise<SmartMenuResult>
     const base64Image = await fileToBase64(imageFile);
     
     const prompt = `
-    You are looking at a restaurant menu. Your job is to extract dish names and prices into a structured table. Only include what is clearly readable in the image. Do not invent or guess missing items. Preserve the original order if possible.
-    
-    For each dish you can clearly see:
-    - Extract the exact name as written
-    - Extract the price if visible (keep original currency/format)
-    - Estimate category: appetizer, main, dessert, drink, or other
-    - Rate your confidence (0-1) for each item
-    
-    Return JSON in this format:
+    You are an expert at reading restaurant menus. Carefully examine this entire menu image and systematically extract EVERY food and drink item that customers can order.
+
+    SCAN THE ENTIRE IMAGE:
+    - Look at all sections of the menu (top, bottom, left, right, center)
+    - Read all text in any language (Thai, English, Chinese, etc.)
+    - Don't miss items in different sections or categories
+    - Include items with and without visible prices
+    - Look for items in small text or side areas
+
+    FOR EACH ITEM YOU FIND:
+    - Extract the exact dish name as written (preserve original language)
+    - Extract the price if visible (keep exact format like "120/220 บาท" or "60 บาท")
+    - If no price visible, use "Price not shown"
+    - Assign category based on the menu section or item type
+    - Rate confidence 0.8-1.0 for clear items, 0.6-0.7 for partially visible
+
+    COMPREHENSIVE EXTRACTION:
+    Be thorough - extract every single item you can see, even if:
+    - Text is small or partially obscured
+    - Item appears in a different section
+    - Price format is unusual (ranges, multiple options)
+    - Mixed languages are used
+
+    Return JSON with ALL items found:
     {
       "dishes": [
         {
-          "name": "...",
-          "price": "...",
-          "category": "main",
+          "name": "exact dish name as written",
+          "price": "exact price format or 'Price not shown'",
+          "category": "rice/noodles/soup/appetizer/main/dessert/drink/side",
           "confidence": 0.95
         }
       ],
-      "language": "detected_language_code",
-      "totalDishes": number_of_dishes
+      "language": "th",
+      "totalDishes": total_count
     }
     `;
 

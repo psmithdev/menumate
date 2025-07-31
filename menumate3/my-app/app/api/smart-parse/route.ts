@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
                 type: "image_url",
                 image_url: {
                   url: `data:image/jpeg;base64,${image}`,
-                  detail: "low", // Use low detail for 2-3x faster processing
+                  detail: "high", // Restore high detail for better accuracy
                 },
               },
             ],
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
         temperature: 0, // Lowest possible for maximum speed  
         stream: false, // Keep false for now - streaming requires different handling
         top_p: 0.1, // Add top_p to reduce sampling complexity
-        frequency_penalty: 0.5, // Prevent repetitive hallucinations
+        frequency_penalty: 0.2, // Light penalty to reduce repetition without limiting extraction
       }),
     });
 

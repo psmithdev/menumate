@@ -30,44 +30,24 @@ export async function parseMenuWithAI(imageFile: File): Promise<SmartMenuResult>
     // Convert image to base64
     const base64Image = await fileToBase64(imageFile);
     
-    const prompt = `
-    You are an expert at reading restaurant menus. Carefully examine this entire menu image and systematically extract EVERY food and drink item that customers can order.
+    const prompt = `Extract ALL visible Thai dish names and prices from this menu image. Scan the entire image systematically - check all sections, corners, and text areas.  
 
-    SCAN THE ENTIRE IMAGE:
-    - Look at all sections of the menu (top, bottom, left, right, center)
-    - Read all text in any language (Thai, English, Chinese, etc.)
-    - Don't miss items in different sections or categories
-    - Include items with and without visible prices
-    - Look for items in small text or side areas
+For each dish found, extract:
+- Exact name as written (Thai/English)
+- Exact price format (120/220 บาท, 60 บาท, etc.)
+- Category (rice/soup/side/drink/main)
+- Confidence (0.8-1.0)
 
-    FOR EACH ITEM YOU FIND:
-    - Extract the exact dish name as written (preserve original language)
-    - Extract the price if visible (keep exact format like "120/220 บาท" or "60 บาท")
-    - If no price visible, use "Price not shown"
-    - Assign category based on the menu section or item type
-    - Rate confidence 0.8-1.0 for clear items, 0.6-0.7 for partially visible
+Be comprehensive - find every item customers can order, including items in small text or different sections.
 
-    COMPREHENSIVE EXTRACTION:
-    Be thorough - extract every single item you can see, even if:
-    - Text is small or partially obscured
-    - Item appears in a different section
-    - Price format is unusual (ranges, multiple options)
-    - Mixed languages are used
-
-    Return JSON with ALL items found:
-    {
-      "dishes": [
-        {
-          "name": "exact dish name as written",
-          "price": "exact price format or 'Price not shown'",
-          "category": "rice/noodles/soup/appetizer/main/dessert/drink/side",
-          "confidence": 0.95
-        }
-      ],
-      "language": "th",
-      "totalDishes": total_count
-    }
-    `;
+Return JSON:
+{
+  "dishes": [
+    {"name": "exact dish name", "price": "exact price", "category": "main", "confidence": 0.95}
+  ],
+  "language": "th",
+  "totalDishes": count
+}`;
 
     // Call OpenAI API
     const response = await fetch('/api/smart-parse', {

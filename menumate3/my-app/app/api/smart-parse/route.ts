@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(30000), // 30s timeout
+      signal: AbortSignal.timeout(45000), // 45s timeout to handle comprehensive prompts
       body: JSON.stringify({
         model: "gpt-4o",
         messages: [

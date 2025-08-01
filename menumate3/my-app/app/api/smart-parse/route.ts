@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
             ],
           },
         ],
-        max_tokens: 1500, // Increase back to prevent JSON truncation
+        max_tokens: 2500, // Increased to prevent JSON truncation with complex menus
         temperature: 0, // Lowest possible for maximum speed  
         stream: false, // Keep false for now - streaming requires different handling
         top_p: 0.1, // Add top_p to reduce sampling complexity
@@ -228,6 +228,40 @@ export async function POST(req: NextRequest) {
         totalDishes: parsedResult.totalDishes,
       });
 
+      // Convert malformed nested structure to expected flat array
+      if (!parsedResult.dishes && typeof parsedResult === 'object') {
+        console.log("🔧 Converting nested menu structure to flat array...");
+        const dishes = [];
+        
+        // Extract dishes from nested structure
+        for (const [categoryKey, categoryValue] of Object.entries(parsedResult)) {
+          if (Array.isArray(categoryValue)) {
+            console.log(`📂 Found category "${categoryKey}" with ${categoryValue.length} items`);
+            categoryValue.forEach((item: any) => {
+              if (item.name && item.price && item.name.trim() && item.price.trim()) {
+                dishes.push({
+                  name: item.name,
+                  price: item.price,
+                  category: categoryKey.includes('ราด') ? 'rice' : 
+                           categoryKey.includes('เคียง') ? 'side' :
+                           categoryKey.includes('กับข้าว') ? 'main' :
+                           categoryKey.includes('ซุป') || categoryKey.includes('ต้ม') ? 'soup' : 'main',
+                  confidence: 0.9
+                });
+              }
+            });
+          }
+        }
+        
+        parsedResult = {
+          dishes: dishes,
+          totalDishes: dishes.length,
+          language: 'th'
+        };
+        
+        console.log(`🔄 Converted to flat structure: ${dishes.length} dishes`);
+      }
+
       // Validate result to prevent hallucinations
       if (parsedResult.dishes) {
         console.log("🔍 Raw dishes found:", parsedResult.dishes.length);
@@ -293,26 +327,60 @@ export async function POST(req: NextRequest) {
       console.error("❌ Content preview:", cleanContent.substring(0, 500));
       console.error("❌ Content end preview:", cleanContent.substring(-200));
 
-      // Try to fix incomplete JSON by adding closing brackets
+      // Try to fix incomplete JSON by carefully analyzing the structure
       let fixedContent = cleanContent;
-      if (!cleanContent.trim().endsWith("}")) {
-        // Count opening and closing brackets to balance
-        const openBraces = (cleanContent.match(/{/g) || []).length;
-        const closeBraces = (cleanContent.match(/}/g) || []).length;
-        const openBrackets = (cleanContent.match(/\[/g) || []).length;
-        const closeBrackets = (cleanContent.match(/]/g) || []).length;
-
-        // Add missing closing brackets/braces
-        fixedContent += "}]".repeat(Math.max(0, openBrackets - closeBrackets));
-        fixedContent += "}".repeat(Math.max(0, openBraces - closeBraces));
-
-        console.log(
-          "🔧 Attempting to fix JSON with:",
-          fixedContent.substring(-100)
-        );
+      
+      // First, try to find where the JSON got truncated
+      console.log("🔍 Analyzing truncated JSON...");
+      console.log("Last 200 characters:", cleanContent.slice(-200));
+      
+      // Look for common truncation patterns
+      const lastBrace = cleanContent.lastIndexOf('}');
+      const lastBracket = cleanContent.lastIndexOf(']');
+      const lastQuote = cleanContent.lastIndexOf('"');
+      
+      console.log("JSON structure analysis:", {
+        lastBrace, lastBracket, lastQuote,
+        endsWithBrace: cleanContent.trim().endsWith('}'),
+        endsWithBracket: cleanContent.trim().endsWith(']'),
+        length: cleanContent.length
+      });
+      
+      // If JSON seems truncated in the middle of a string or array
+      if (lastQuote > Math.max(lastBrace, lastBracket)) {
+        // Truncated in middle of string - try to close it properly
+        console.log("🔧 Detected truncation in string, attempting repair...");
+        
+        // Find the last complete dish entry
+        const dishesMatch = cleanContent.match(/"dishes":\s*\[(.*)/s);
+        if (dishesMatch) {
+          const dishesContent = dishesMatch[1];
+          const lastCompleteItem = dishesContent.lastIndexOf('},{');
+          
+          if (lastCompleteItem > -1) {
+            // Cut off at last complete item and close properly
+            const truncatedDishes = dishesContent.substring(0, lastCompleteItem + 1);
+            fixedContent = cleanContent.substring(0, cleanContent.indexOf('"dishes":')) + 
+                          `"dishes": [${truncatedDishes}], "totalDishes": 0, "language": "th"}`;
+            console.log("🔧 Repaired JSON preview:", fixedContent.slice(-100));
+          }
+        }
+      }
+      
+      try {
         parsedResult = JSON.parse(fixedContent);
-      } else {
-        throw parseError;
+        console.log("✅ Successfully parsed repaired JSON");
+      } catch (repairError) {
+        console.error("❌ Could not repair JSON:", repairError);
+        // Return a minimal valid response to prevent complete failure
+        parsedResult = {
+          dishes: [],
+          totalDishes: 0,
+          language: "th",
+          error: "JSON_PARSE_FAILED",
+          originalLength: cleanContent.length
+        };
+        console.log("⚠️ Returning minimal response due to parse failure");
       }
     }
 

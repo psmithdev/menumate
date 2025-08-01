@@ -177,8 +177,26 @@ export async function POST(request: NextRequest) {
         lines.push(currentLine);
       }
       
-      // Join each line and then join all lines
-      const reconstructedText = lines.map(line => line.join(' ')).join('\n');
+      // Join each line with smart spacing, then join all lines
+      const reconstructedText = lines.map(line => {
+        // Join Thai characters without spaces, but keep spaces for English/numbers
+        return line.reduce((result, word, index) => {
+          if (index === 0) return word;
+          
+          const prevWord = line[index - 1];
+          const currentWord = word;
+          
+          // Add space if transitioning between Thai and English/numbers
+          const prevIsThai = /[ก-๙]/.test(prevWord);
+          const currentIsThai = /[ก-๙]/.test(currentWord);
+          const needsSpace = (!prevIsThai || !currentIsThai) || 
+                            /^\d+/.test(currentWord) || 
+                            currentWord.includes('บาท') ||
+                            prevWord.includes('บาท');
+          
+          return result + (needsSpace ? ' ' : '') + currentWord;
+        }, '');
+      }).join('\n');
       console.log(`🔧 Reconstructed text length: ${reconstructedText.length}`);
       console.log(`🔧 Reconstructed preview: ${reconstructedText.substring(0, 300)}...`);
       

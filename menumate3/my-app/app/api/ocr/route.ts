@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       {
         image: { content: base64Image },
         features: [
-          { type: "TEXT_DETECTION", maxResults: 50 },
+          { type: "TEXT_DETECTION", maxResults: 200 },
           { type: "DOCUMENT_TEXT_DETECTION", maxResults: 1 }
         ],
         imageContext: {
@@ -114,12 +114,83 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Enhance text extraction by combining both detection methods
+  // Enhanced text extraction: if fullText seems incomplete, reconstruct from individual annotations
   if (response.textAnnotations && response.textAnnotations.length > 1) {
     console.log(`📝 Found ${response.textAnnotations.length - 1} text annotations`);
     
+    // Check if fullText seems truncated or incomplete
+    const fullTextLength = text.length;
+    const individualTexts = response.textAnnotations.slice(1).map((ann: any) => ann.description);
+    const totalIndividualLength = individualTexts.join(' ').length;
+    
+    console.log(`📏 Full text length: ${fullTextLength}, Individual texts total: ${totalIndividualLength}`);
+    
+    // If individual annotations seem more complete, use them to enhance the text
+    if (totalIndividualLength > fullTextLength * 1.1 || fullTextLength < 800 || text.includes('เครื่องเคี')) {
+      console.log(`🔄 Enhancing text extraction with individual annotations...`);
+      
+      // Group annotations by approximate line position and x coordinate
+      const annotationsWithPosition = response.textAnnotations.slice(1).map((annotation: any) => {
+        const vertices = annotation.boundingPoly?.vertices || [];
+        let avgY = 0, avgX = 0;
+        if (vertices.length > 0) {
+          avgY = vertices.reduce((sum: number, v: any) => sum + (v.y || 0), 0) / vertices.length;
+          avgX = vertices.reduce((sum: number, v: any) => sum + (v.x || 0), 0) / vertices.length;
+        }
+        return {
+          text: annotation.description,
+          y: avgY,
+          x: avgX
+        };
+      });
+      
+      // Sort by Y position first (top to bottom), then by X position (left to right)
+      annotationsWithPosition.sort((a, b) => {
+        const yDiff = a.y - b.y;
+        if (Math.abs(yDiff) < 25) { // Same line if Y difference is small
+          return a.x - b.x; // Sort by X within the same line
+        }
+        return yDiff; // Sort by Y between different lines
+      });
+      
+      // Group into lines with some tolerance for Y position
+      const lines: string[][] = [];
+      let currentLine: string[] = [];
+      let lastY = -1;
+      
+      annotationsWithPosition.forEach(item => {
+        if (lastY === -1 || Math.abs(item.y - lastY) < 25) {
+          // Same line
+          currentLine.push(item.text);
+        } else {
+          // New line
+          if (currentLine.length > 0) {
+            lines.push([...currentLine]);
+          }
+          currentLine = [item.text];
+        }
+        lastY = item.y;
+      });
+      
+      // Don't forget the last line
+      if (currentLine.length > 0) {
+        lines.push(currentLine);
+      }
+      
+      // Join each line and then join all lines
+      const reconstructedText = lines.map(line => line.join(' ')).join('\n');
+      console.log(`🔧 Reconstructed text length: ${reconstructedText.length}`);
+      console.log(`🔧 Reconstructed preview: ${reconstructedText.substring(0, 300)}...`);
+      
+      // Use the more complete version
+      if (reconstructedText.length > text.length) {
+        text = reconstructedText;
+        console.log(`✅ Using reconstructed text (${reconstructedText.length} chars vs ${fullTextLength} chars)`);
+      }
+    }
+    
     // Log some sample detections for debugging
-    const sampleAnnotations = response.textAnnotations.slice(1, 6);
+    const sampleAnnotations = response.textAnnotations.slice(1, 10);
     sampleAnnotations.forEach((annotation: any, index: number) => {
       console.log(`   ${index + 1}. "${annotation.description}" (conf: ${annotation.confidence || 'N/A'})`);
     });

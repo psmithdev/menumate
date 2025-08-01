@@ -130,85 +130,96 @@ async function extractTextWithGoogleVision(imageFile: File): Promise<{ text: str
 
 /**
  * Parse extracted text into dishes using intelligent text analysis
+ * Handles cases where dish names and prices are on separate lines
  */
 function parseTextToDishes(text: string): SmartDish[] {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   const dishes: SmartDish[] = [];
   
+  console.log('🔍 Parsing menu text with', lines.length, 'lines');
+  
   // Thai menu parsing patterns
   const thaiPatterns = {
-    // Price patterns: "120 บาท", "120/220 บาท", "120-220 บาท"
-    price: /(\d+(?:[-\/]\d+)?)\s*(?:บาท|baht|฿)/gi,
-    // Dish name patterns - Thai characters followed by space and price
-    dishWithPrice: /^([ก-๙a-zA-Z\s\-\(\)]+?)\s+(\d+(?:[-\/]\d+)?)\s*(?:บาท|baht|฿)/gi,
-    // Standalone dish names (Thai characters)
+    // Price patterns: "120 บาท", "120/220 บาท", "120-220 บาท", "กิโลละ 420 บาท"
+    price: /(?:กิโลละ\s*)?(\d+(?:[-\/]\d+)?)\s*(?:บาท|baht|฿)/gi,
+    // Dish name patterns - Thai characters
     thaiText: /[ก-๙]+/,
+    // Range price pattern specifically
+    rangePrice: /(\d+)\/(\d+)\s*บาท/gi,
   };
   
-  for (const line of lines) {
-    // Skip very short lines or lines that look like headers
+  // First pass: Find all lines with prices and potential dish names
+  const priceLines: { index: number; price: string; line: string }[] = [];
+  const dishNameCandidates: { index: number; name: string; line: string }[] = [];
+  
+  lines.forEach((line, index) => {
+    // Skip headers and very short lines
     if (line.length < 3 || isHeaderLine(line)) {
-      continue;
+      return;
     }
     
-    // Try to match dish with price pattern
-    const dishMatch = line.match(thaiPatterns.dishWithPrice);
-    if (dishMatch) {
-      const fullMatch = dishMatch[0];
-      const parts = fullMatch.split(/\s+(\d+(?:[-\/]\d+)?)\s*(?:บาท|baht|฿)/i);
+    // Check if line contains a price
+    const priceMatch = line.match(thaiPatterns.price);
+    if (priceMatch) {
+      const price = priceMatch[1];
+      console.log(`💰 Found price on line ${index}: "${line}" -> ${price} บาท`);
+      priceLines.push({ index, price, line });
       
-      if (parts.length >= 2) {
-        const dishName = parts[0].trim();
-        const price = parts[1];
-        
-        if (dishName && price && dishName.length > 2) {
-          dishes.push({
-            name: dishName,
-            price: `${price} บาท`,
-            confidence: 0.9,
-            category: categorizeByName(dishName)
-          });
-          continue;
-        }
-      }
-    }
-    
-    // Try to find price in line and extract dish name
-    const priceMatches = Array.from(line.matchAll(thaiPatterns.price));
-    if (priceMatches.length > 0) {
-      for (const priceMatch of priceMatches) {
-        const price = priceMatch[1];
-        const dishName = line.replace(priceMatch[0], '').trim();
-        
-        // Clean up dish name
-        const cleanName = cleanDishName(dishName);
-        
-        if (cleanName && cleanName.length > 2 && hasThaiText(cleanName)) {
-          dishes.push({
-            name: cleanName,
-            price: `${price} บาท`,
-            confidence: 0.85,
-            category: categorizeByName(cleanName)
-          });
-        }
-      }
-    }
-    
-    // For lines with Thai text but no clear price, try to infer
-    else if (hasThaiText(line) && line.length > 3 && line.length < 100) {
-      const cleanName = cleanDishName(line);
-      
-      // Check if this looks like a dish name
-      if (cleanName && isLikelyDishName(cleanName)) {
+      // Also check if the same line has a dish name
+      const dishName = line.replace(priceMatch[0], '').trim();
+      const cleanName = cleanDishName(dishName);
+      if (cleanName && cleanName.length > 2 && hasThaiText(cleanName)) {
+        console.log(`🍽️ Found dish with price on same line: "${cleanName}"`);
         dishes.push({
           name: cleanName,
-          price: "Price not shown",
-          confidence: 0.7,
+          price: `${price} บาท`,
+          confidence: 0.95,
           category: categorizeByName(cleanName)
         });
       }
     }
-  }
+    // Check if line looks like a dish name
+    else if (hasThaiText(line) && line.length > 3 && line.length < 100) {
+      const cleanName = cleanDishName(line);
+      if (cleanName && isLikelyDishName(cleanName)) {
+        console.log(`🍽️ Found potential dish name on line ${index}: "${cleanName}"`);
+        dishNameCandidates.push({ index, name: cleanName, line });
+      }
+    }
+  });
+  
+  // Second pass: Match dish names with nearby prices
+  dishNameCandidates.forEach(candidate => {
+    // Look for prices within 3 lines after the dish name
+    const nearbyPrices = priceLines.filter(priceLine => 
+      priceLine.index > candidate.index && 
+      priceLine.index <= candidate.index + 3
+    );
+    
+    if (nearbyPrices.length > 0) {
+      // Use the closest price
+      const closestPrice = nearbyPrices[0];
+      console.log(`🔗 Matching "${candidate.name}" with price ${closestPrice.price} บาท`);
+      
+      dishes.push({
+        name: candidate.name,
+        price: `${closestPrice.price} บาท`,
+        confidence: 0.85,
+        category: categorizeByName(candidate.name)
+      });
+    } else {
+      // No nearby price found, add without price
+      console.log(`❓ No price found for "${candidate.name}"`);
+      dishes.push({
+        name: candidate.name,
+        price: "Price not shown",
+        confidence: 0.7,
+        category: categorizeByName(candidate.name)
+      });
+    }
+  });
+  
+  console.log(`📊 Parsed ${dishes.length} dishes total`);
   
   // Remove duplicates based on similar names
   return removeDuplicateDishes(dishes);
@@ -246,12 +257,17 @@ function hasThaiText(text: string): boolean {
 
 function isHeaderLine(line: string): boolean {
   const headers = [
-    'menu', 'เมนู', 'price', 'ราคา', 'food', 'อาหาร', 
-    'drink', 'เครื่องดื่ม', 'dessert', 'ของหวาน'
+    'เมนูราดข้าว', 'เมนูกับข้าว', 'เครื่องเคียงขาหมู', 'menu', 'price', 'ราคา', 'ตั้งซุป'
   ];
   
   const lowerLine = line.toLowerCase();
-  return headers.some(header => lowerLine.includes(header)) && line.length < 20;
+  
+  // Only exclude if it's exactly a header or contains bullet points/decorations
+  return headers.some(header => lowerLine.includes(header)) || 
+         line.includes('•') || 
+         line.includes('BY') ||
+         line.startsWith('เมนู') ||
+         (line.length < 8 && /^[A-Z\s]+$/.test(line)); // Short all-caps English
 }
 
 function cleanDishName(name: string): string {
@@ -263,11 +279,20 @@ function cleanDishName(name: string): string {
 
 function isLikelyDishName(name: string): boolean {
   // Check if it looks like a dish name (not too generic, not too long)
-  const tooGeneric = ['ข้าว', 'น้ำ', 'อาหาร', 'เมนู'];
-  const tooShort = name.length < 4;
+  const tooGeneric = ['เมนู', 'ราคา', 'บาท']; // Only exclude obvious non-dish words
+  const tooShort = name.length < 3; // Allow shorter names
   const tooLong = name.length > 80;
   
-  return !tooShort && !tooLong && !tooGeneric.some(generic => name === generic);
+  // Exclude pure English promotional text
+  const isEnglishPromo = /^[A-Z\s]+$/.test(name) && name.includes(' ');
+  
+  // Must contain Thai characters or be a reasonable dish name
+  const hasThaiChars = /[ก-๙]/.test(name);
+  
+  return !tooShort && !tooLong && 
+         !tooGeneric.some(generic => name === generic) &&
+         !isEnglishPromo &&
+         hasThaiChars;
 }
 
 function categorizeByName(name: string): string {

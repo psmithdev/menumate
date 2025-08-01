@@ -137,6 +137,10 @@ function parseTextToDishes(text: string): SmartDish[] {
   const dishes: SmartDish[] = [];
   
   console.log('🔍 Parsing menu text with', lines.length, 'lines');
+  console.log('📝 Full extracted text:');
+  console.log(text);
+  console.log('📝 Lines to parse:');
+  lines.forEach((line, i) => console.log(`${i}: "${line}"`));
   
   // Thai menu parsing patterns
   const thaiPatterns = {

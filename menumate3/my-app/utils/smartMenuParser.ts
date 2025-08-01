@@ -274,6 +274,7 @@ function cleanDishName(name: string): string {
   return name
     .replace(/[^\u0E00-\u0E7Fa-zA-Z0-9\s\-\(\)]/g, '') // Keep Thai, English, numbers, spaces, hyphens, parentheses
     .replace(/\s+/g, ' ') // Normalize spaces
+    .replace(/([ก-๙])\s+([ก-๙])/g, '$1$2') // Remove spaces between Thai characters
     .trim();
 }
 

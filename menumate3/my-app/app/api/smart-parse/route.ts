@@ -1,4 +1,5 @@
-// API route for GPT-4 Vision menu parsing
+// API route for GPT-4 Vision menu parsing (BACKUP/FALLBACK ONLY)
+// Primary parsing now uses Google Cloud Vision + intelligent parsing (faster, cheaper)
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {

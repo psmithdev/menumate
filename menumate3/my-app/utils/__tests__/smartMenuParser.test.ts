@@ -2,7 +2,7 @@ import { parseMenuWithAI, SmartMenuResult } from '../smartMenuParser';
 import fs from 'fs';
 import path from 'path';
 
-// Mock fetch for API calls
+// Mock fetch for OCR API calls
 global.fetch = jest.fn();
 
 describe('Smart Menu Parser - Accuracy Regression Tests', () => {
@@ -37,10 +37,32 @@ describe('Smart Menu Parser - Accuracy Regression Tests', () => {
     };
 
     it('should extract exactly 16 dishes from Thai pork leg menu', async () => {
-      // Mock successful API response
+      // Mock OCR API response with realistic Thai menu text
+      const mockOCRText = `ข้าวขาหมูบิ๊กเบิ้ม 70 บาท
+ข้าวขาหมูพ่อบิ๊กเบิ้ม 90 บาท  
+ข้าวหอมมะลิ 100% 10 บาท
+ไข่ต้ม 10 บาท
+ผักกาดดองเคียงขาหมู 25 บาท
+กุนเชียงขาหมูตัด มันน้อยทอด 60 บาท
+บ๊ะจ่างทรงเครื่อง 90 บาท
+รวมขาหมู 120/220 บาท
+เนื้อต้นขา 120/220 บาท
+เนื้อล้วน 120/220 บาท
+คากิ 120/220 บาท
+ไส้ 120/220 บาท
+ขาหมูยกขา 420 บาท
+ต้มมะระซี่โครงหมู 60 บาท
+ต้มผักกาดดองซี่โครงหมู-ไส้ 60 บาท
+เก๊กฮวยสูตรโบราณน้ำตาล 3 สี 25 บาท`;
+
       (fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: async () => expectedThaiPorkLegMenu
+        json: async () => ({
+          text: mockOCRText,
+          confidence: 0.95,
+          language: 'auto',
+          processingTime: 3000
+        })
       });
 
       // Create mock image file
@@ -56,9 +78,18 @@ describe('Smart Menu Parser - Accuracy Regression Tests', () => {
     });
 
     it('should extract specific expected dishes with correct names and prices', async () => {
+      const mockOCRText = `ข้าวขาหมูบิ๊กเบิ้ม 70 บาท
+ขาหมูยกขา 420 บาท
+รวมขาหมู 120/220 บาท
+เก๊กฮวยสูตรโบราณน้ำตาล 3 สี 25 บาท`;
+
       (fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
-        json: async () => expectedThaiPorkLegMenu
+        json: async () => ({
+          text: mockOCRText,
+          confidence: 0.95,
+          language: 'auto'
+        })
       });
 
       const mockImageFile = new File(['mock image data'], 'pork-leg-menu.jpg', {

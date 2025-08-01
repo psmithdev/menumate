@@ -34,6 +34,7 @@ import { QRCodeSection } from "@/components/QRCodeSection";
 import { CartButton } from "@/components/CartButton";
 import { DishCard } from "@/components/dish-card";
 import { parseMenuWithAI } from "@/utils/smartMenuParser";
+import { parseMenuWithGPT4 } from "@/utils/smartMenuParserGPT4";
 
 type Screen =
   | "welcome"
@@ -216,13 +217,20 @@ export default function MenuTranslatorDesign() {
     }
   }, [parsedDishes, filters, applyFilters]);
 
-  // GPT-4 Vision smart parsing function
-  const trySmartParsing = async (imageFile: File) => {
+  // Smart parsing function with Google Cloud Vision (primary) and GPT-4o (fallback)
+  const trySmartParsing = async (imageFile: File, useGPT4Fallback = false) => {
     try {
-      console.log('🚀 Using improved smart menu parser...');
-      const result = await parseMenuWithAI(imageFile);
-      console.log('✅ Smart parsing result:', result);
-      return result;
+      if (useGPT4Fallback) {
+        console.log('🔄 Trying GPT-4o fallback...');
+        const result = await parseMenuWithGPT4(imageFile);
+        console.log('✅ GPT-4o parsing result:', result);
+        return result;
+      } else {
+        console.log('🚀 Using Google Cloud Vision + intelligent parsing...');
+        const result = await parseMenuWithAI(imageFile);
+        console.log('✅ Google Vision parsing result:', result);
+        return result;
+      }
     } catch (error) {
       console.error('❌ Smart parsing failed:', error);
       return null;
@@ -239,8 +247,15 @@ export default function MenuTranslatorDesign() {
       const performOcr = async () => {
         try {
           
-          // Try GPT-4 Vision first (much more accurate)
-          const smartResult = await trySmartParsing(menuImage);
+          // Try Google Cloud Vision + intelligent parsing first (fast & accurate)
+          let smartResult = await trySmartParsing(menuImage, false);
+          
+          // If Google Vision fails or returns few dishes, try GPT-4o fallback
+          if (!smartResult || (smartResult.dishes && smartResult.dishes.length < 8)) {
+            console.log('🔄 Google Vision result insufficient, trying GPT-4o fallback...');
+            smartResult = await trySmartParsing(menuImage, true);
+          }
+          
           if (smartResult) {
             
             // Convert smart result to ParsedDish format

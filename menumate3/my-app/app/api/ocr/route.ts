@@ -64,6 +64,10 @@ export async function POST(request: NextRequest) {
           languageHints: ["th", "en"], // Thai and English for menu parsing
           textDetectionParams: {
             enableTextDetectionConfidenceScore: true
+          },
+          // Enhanced context for better menu detection
+          cropHintsParams: {
+            aspectRatios: [0.8, 1.0, 1.2] // Common menu aspect ratios
           }
         }
       },
@@ -125,6 +129,23 @@ export async function POST(request: NextRequest) {
     
     console.log(`📏 Full text length: ${fullTextLength}, Individual texts total: ${totalIndividualLength}`);
     
+    // Enhanced price detection analysis
+    const priceAnnotations = response.textAnnotations.slice(1).filter((ann: any) => {
+      const desc = ann.description;
+      return /\d+\s*(?:บาท|baht|฿|\$)/.test(desc) || /^\d{2,4}$/.test(desc);
+    });
+    console.log(`💰 Found ${priceAnnotations.length} potential price annotations:`);
+    priceAnnotations.forEach((ann: any, i: number) => {
+      console.log(`   Price ${i+1}: "${ann.description}" (conf: ${Math.round((ann.confidence || 0) * 100)}%)`);
+    });
+    
+    // Enhanced dish name detection
+    const dishAnnotations = response.textAnnotations.slice(1).filter((ann: any) => {
+      const desc = ann.description;
+      return /[ก-๙]{2,}/.test(desc) && desc.length > 2 && desc.length < 50;
+    });
+    console.log(`🍽️ Found ${dishAnnotations.length} potential dish name annotations`);
+    
     // If individual annotations seem more complete, use them to enhance the text
     if (totalIndividualLength > fullTextLength * 1.1 || fullTextLength < 800 || text.includes('เครื่องเคี')) {
       console.log(`🔄 Enhancing text extraction with individual annotations...`);
@@ -132,71 +153,101 @@ export async function POST(request: NextRequest) {
       // Group annotations by approximate line position and x coordinate
       const annotationsWithPosition = response.textAnnotations.slice(1).map((annotation: any) => {
         const vertices = annotation.boundingPoly?.vertices || [];
-        let avgY = 0, avgX = 0;
+        let avgY = 0, avgX = 0, width = 0, height = 0;
         if (vertices.length > 0) {
           avgY = vertices.reduce((sum: number, v: any) => sum + (v.y || 0), 0) / vertices.length;
           avgX = vertices.reduce((sum: number, v: any) => sum + (v.x || 0), 0) / vertices.length;
+          const minX = Math.min(...vertices.map((v: any) => v.x || 0));
+          const maxX = Math.max(...vertices.map((v: any) => v.x || 0));
+          const minY = Math.min(...vertices.map((v: any) => v.y || 0));
+          const maxY = Math.max(...vertices.map((v: any) => v.y || 0));
+          width = maxX - minX;
+          height = maxY - minY;
         }
         return {
           text: annotation.description,
           y: avgY,
-          x: avgX
+          x: avgX,
+          width,
+          height,
+          confidence: annotation.confidence || 0
         };
       });
       
       // Sort by Y position first (top to bottom), then by X position (left to right)
       annotationsWithPosition.sort((a, b) => {
         const yDiff = a.y - b.y;
-        if (Math.abs(yDiff) < 25) { // Same line if Y difference is small
+        if (Math.abs(yDiff) < 30) { // Same line if Y difference is small (increased tolerance)
           return a.x - b.x; // Sort by X within the same line
         }
         return yDiff; // Sort by Y between different lines
       });
       
       // Group into lines with some tolerance for Y position
-      const lines: string[][] = [];
-      let currentLine: string[] = [];
+      const lines: Array<{text: string, words: Array<{text: string, confidence: number}>}> = [];
+      let currentLine: Array<{text: string, confidence: number}> = [];
       let lastY = -1;
       
       annotationsWithPosition.forEach(item => {
-        if (lastY === -1 || Math.abs(item.y - lastY) < 25) {
+        if (lastY === -1 || Math.abs(item.y - lastY) < 30) {
           // Same line
-          currentLine.push(item.text);
+          currentLine.push({text: item.text, confidence: item.confidence});
         } else {
           // New line
           if (currentLine.length > 0) {
-            lines.push([...currentLine]);
+            const lineText = currentLine.map(w => w.text).join(' ');
+            lines.push({text: lineText, words: [...currentLine]});
           }
-          currentLine = [item.text];
+          currentLine = [{text: item.text, confidence: item.confidence}];
         }
         lastY = item.y;
       });
       
       // Don't forget the last line
       if (currentLine.length > 0) {
-        lines.push(currentLine);
+        const lineText = currentLine.map(w => w.text).join(' ');
+        lines.push({text: lineText, words: currentLine});
       }
       
-      // Join each line with smart spacing, then join all lines
-      const reconstructedText = lines.map(line => {
-        // Join Thai characters without spaces, but keep spaces for English/numbers
-        return line.reduce((result, word, index) => {
-          if (index === 0) return word;
+      // Enhanced line reconstruction with price extraction debugging
+      const reconstructedLines: string[] = [];
+      lines.forEach((line, lineIndex) => {
+        const lineText = line.words.reduce((result, word, index) => {
+          if (index === 0) return word.text;
           
-          const prevWord = line[index - 1];
-          const currentWord = word;
+          const prevWord = line.words[index - 1].text;
+          const currentWord = word.text;
           
-          // Add space if transitioning between Thai and English/numbers
+          // Enhanced spacing logic
           const prevIsThai = /[ก-๙]/.test(prevWord);
           const currentIsThai = /[ก-๙]/.test(currentWord);
+          const prevIsNumber = /^\d+$/.test(prevWord);
+          const currentIsNumber = /^\d+$/.test(currentWord);
+          const prevIsCurrency = /(?:บาท|baht|฿|\$)/.test(prevWord);
+          const currentIsCurrency = /(?:บาท|baht|฿|\$)/.test(currentWord);
+          
+          // Add space for price patterns
           const needsSpace = (!prevIsThai || !currentIsThai) || 
+                            currentIsNumber || prevIsNumber ||
+                            currentIsCurrency || prevIsCurrency ||
                             /^\d+/.test(currentWord) || 
                             currentWord.includes('บาท') ||
                             prevWord.includes('บาท');
           
           return result + (needsSpace ? ' ' : '') + currentWord;
         }, '');
-      }).join('\n');
+        
+        // Log line analysis for debugging
+        const hasPrice = /\d+\s*(?:บาท|baht|฿)/.test(lineText);
+        const hasThai = /[ก-๙]/.test(lineText);
+        const avgConfidence = line.words.reduce((sum, w) => sum + w.confidence, 0) / line.words.length;
+        
+        console.log(`📄 Line ${lineIndex}: "${lineText}" (Thai: ${hasThai}, Price: ${hasPrice}, Conf: ${Math.round(avgConfidence * 100)}%)`);
+        
+        reconstructedLines.push(lineText);
+      });
+      
+      const reconstructedText = reconstructedLines.join('\n');
       console.log(`🔧 Reconstructed text length: ${reconstructedText.length}`);
       console.log(`🔧 Reconstructed preview: ${reconstructedText.substring(0, 300)}...`);
       
@@ -208,9 +259,12 @@ export async function POST(request: NextRequest) {
     }
     
     // Log some sample detections for debugging
-    const sampleAnnotations = response.textAnnotations.slice(1, 10);
+    const sampleAnnotations = response.textAnnotations.slice(1, 15); // Show more samples
     sampleAnnotations.forEach((annotation: any, index: number) => {
-      console.log(`   ${index + 1}. "${annotation.description}" (conf: ${annotation.confidence || 'N/A'})`);
+      const conf = annotation.confidence ? Math.round(annotation.confidence * 100) : 'N/A';
+      const isPriceCandidate = /\d+\s*(?:บาท|baht|฿|\$)/.test(annotation.description) || /^\d{2,4}$/.test(annotation.description);
+      const marker = isPriceCandidate ? '💰' : '📝';
+      console.log(`   ${marker} ${index + 1}. "${annotation.description}" (conf: ${conf}%)`);
     });
   }
 
@@ -218,6 +272,30 @@ export async function POST(request: NextRequest) {
   console.log(`⏱️ Total OCR processing time: ${totalTime}ms (API: ${apiTime}ms)`);
   console.log("📝 Extracted text length:", text.length);
   console.log("📄 Text preview:", text.substring(0, 200) + (text.length > 200 ? "..." : ""));
+  
+  // Enhanced price extraction analysis
+  const priceMatches = text.match(/\d+\s*(?:บาท|baht|฿)/gi) || [];
+  const numberMatches = text.match(/\b\d{2,4}\b/g) || [];
+  const thaiWords = text.match(/[ก-๙]+/g) || [];
+  
+  console.log(`🔍 Price Analysis:`);
+  console.log(`   💰 Direct price matches: ${priceMatches.length} - [${priceMatches.slice(0, 5).join(', ')}...]`);
+  console.log(`   🔢 Number matches (potential prices): ${numberMatches.length} - [${numberMatches.slice(0, 10).join(', ')}...]`);
+  console.log(`   🇹🇭 Thai words detected: ${thaiWords.length}`);
+  
+  // Line-by-line analysis for debugging
+  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  console.log(`📋 Line-by-line analysis (${lines.length} lines):`);
+  lines.slice(0, 10).forEach((line, i) => {
+    const hasPrice = /\d+\s*(?:บาท|baht|฿)/.test(line) || /\b\d{2,4}\b/.test(line);
+    const hasThai = /[ก-๙]/.test(line);
+    const marker = hasPrice ? '💰' : hasThai ? '🍽️' : '📝';
+    const truncated = line.length > 60 ? line.substring(0, 60) + '...' : line;
+    console.log(`   ${marker} ${i+1}: "${truncated}"`);
+  });
+  if (lines.length > 10) {
+    console.log(`   ... and ${lines.length - 10} more lines`);
+  }
   
   // Performance analysis
   if (totalTime > 10000) {

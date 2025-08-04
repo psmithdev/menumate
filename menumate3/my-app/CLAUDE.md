@@ -13,6 +13,10 @@ MenuMate is a Next.js 15 application that allows users to photograph restaurant 
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint to check code quality
 
+## Git Best Practices
+
+- git commit often with short messages
+
 ## Architecture
 
 ### Core Application Structure

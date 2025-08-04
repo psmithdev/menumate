@@ -127,7 +127,7 @@ function isDishLine(text: string): boolean {
   return true;
 }
 
-// Enhanced price regex patterns for Thai menus
+// Enhanced price regex patterns for Thai menus with better debugging
 const PRICE_PATTERNS = {
   // Pattern 1: Price at end with currency (e.g., "ข้าวผัดกุ้ง 120 บาท", "Tom Yum ฿85")
   priceAtEnd: /(.+?)\s+(\d{1,5}(?:[.,]\d{1,2})?)\s*([฿$€£¥]|บาท|baht|THB|USD|JPY|EUR|GBP)?$/i,
@@ -148,7 +148,13 @@ const PRICE_PATTERNS = {
   sizeInParentheses: /(.+?)\s*\(([^)]+)\)\s*(\d{1,5}(?:[.,]\d{1,2})?)\s*([฿$€£¥]|บาท|baht|THB|USD|JPY|EUR|GBP)?$/i,
   
   // Pattern 7: Multiple prices separated by slashes (e.g., "น้ำปลาหวาน 80/100/120")
-  slashSeparated: /(.+?)\s+(\d{1,5}(?:[.,]\d{1,2})?(?:\/\d{1,5}(?:[.,]\d{1,2})?)+)\s*([฿$€£¥]|บาท|baht|THB|USD|JPY|EUR|GBP)?$/i
+  slashSeparated: /(.+?)\s+(\d{1,5}(?:[.,]\d{1,2})?(?:\/\d{1,5}(?:[.,]\d{1,2})?)+)\s*([฿$€£¥]|บาท|baht|THB|USD|JPY|EUR|GBP)?$/i,
+  
+  // Pattern 8: Numbers after Thai text with potential currency (more flexible)
+  flexiblePrice: /([ก-๙\s]+?)\s*(\d{2,4})\s*([฿$€£¥]|บาท|baht)?\s*$/i,
+  
+  // Pattern 9: Price at beginning (e.g., "120 บาท ข้าวผัด")
+  priceAtBeginning: /^(\d{1,5}(?:[.,]\d{1,2})?)\s*([฿$€£¥]|บาท|baht|THB)?\s+(.+)$/i
 };
 
 // Detect currency from text
@@ -221,11 +227,14 @@ function parseMultipleSizes(dishName: string, pricesText: string, currency?: str
   return prices;
 }
 
-// Main Thai price parsing function
+// Main Thai price parsing function with enhanced debugging
 export function parseThaiMenuLine(line: string): ThaiMenuLine {
   const trimmedLine = line.trim();
   
+  console.log(`🔍 Parsing line: "${trimmedLine}"`);
+  
   if (!trimmedLine || trimmedLine.length < 2) {
+    console.log(`❌ Line too short or empty`);
     return {
       dishName: '',
       prices: [],
@@ -236,8 +245,10 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
   
   // Check if this line is likely to be a dish
   const isDish = isDishLine(trimmedLine);
+  console.log(`🍽️ Is dish line: ${isDish}`);
   
   if (!isDish) {
+    console.log(`❌ Not recognized as dish line`);
     return {
       dishName: trimmedLine,
       prices: [],
@@ -246,11 +257,13 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
     };
   }
   
-  // Try each pattern in order of specificity
+  // Try each pattern in order of specificity with detailed logging
   
   // 1. Multiple sizes pattern
+  console.log(`🔍 Testing multiple sizes pattern...`);
   const multipleSizesMatch = PRICE_PATTERNS.multipleSizes.exec(trimmedLine);
   if (multipleSizesMatch) {
+    console.log(`✅ Multiple sizes match found:`, multipleSizesMatch);
     const dishName = multipleSizesMatch[1].trim();
     const smallPrice = multipleSizesMatch[2];
     const mediumPrice = multipleSizesMatch[3];
@@ -262,7 +275,10 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
     if (mediumPrice) prices.push({ price: `${mediumPrice} ${currency}`, currency, size: 'medium', isMultipleSize: true });
     if (largePrice) prices.push({ price: `${largePrice} ${currency}`, currency, size: 'large', isMultipleSize: true });
     
+    console.log(`💰 Extracted prices:`, prices);
+    
     if (prices.length > 0) {
+      console.log(`✅ Returning multiple sizes result for "${dishName}"`);
       return {
         dishName,
         prices: prices.map(p => ({ ...p, allSizes: prices })),
@@ -372,11 +388,64 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
   }
   
   // 7. Numbers only at end
+  console.log(`🔍 Testing numbers only pattern...`);
   const numbersOnlyMatch = PRICE_PATTERNS.numbersOnly.exec(trimmedLine);
   if (numbersOnlyMatch) {
+    console.log(`✅ Numbers only match found:`, numbersOnlyMatch);
     const dishName = numbersOnlyMatch[1].trim();
     const priceText = numbersOnlyMatch[2];
     const currency = detectCurrency(trimmedLine);
+    
+    console.log(`💰 Extracted: dish="${dishName}", price="${priceText}", currency="${currency}"`);
+    
+    return {
+      dishName,
+      prices: [{
+        price: `${priceText} ${currency}`,
+        currency,
+        isMultipleSize: false
+      }],
+      isValid: true,
+      isDish: true
+    };
+  }
+  
+  // 8. Flexible price pattern (more lenient)
+  console.log(`🔍 Testing flexible price pattern...`);
+  const flexiblePriceMatch = PRICE_PATTERNS.flexiblePrice.exec(trimmedLine);
+  if (flexiblePriceMatch) {
+    console.log(`✅ Flexible price match found:`, flexiblePriceMatch);
+    const dishName = flexiblePriceMatch[1].trim();
+    const priceText = flexiblePriceMatch[2];
+    const currency = detectCurrency(trimmedLine, flexiblePriceMatch[3]);
+    
+    // Validate that the price is reasonable
+    const priceNum = parseInt(priceText);
+    if (priceNum >= 15 && priceNum <= 3000) {
+      console.log(`💰 Valid flexible price: dish="${dishName}", price="${priceText}", currency="${currency}"`);
+      return {
+        dishName,
+        prices: [{
+          price: `${priceText} ${currency}`,
+          currency,
+          isMultipleSize: false
+        }],
+        isValid: true,
+        isDish: true
+      };
+    } else {
+      console.log(`❌ Price ${priceNum} out of reasonable range`);
+    }
+  }
+  
+  // 9. Price at beginning
+  console.log(`🔍 Testing price at beginning pattern...`);
+  const priceAtBeginningMatch = PRICE_PATTERNS.priceAtBeginning.exec(trimmedLine);
+  if (priceAtBeginningMatch) {
+    console.log(`✅ Price at beginning match found:`, priceAtBeginningMatch);
+    const priceText = priceAtBeginningMatch[1];
+    const currency = detectCurrency(trimmedLine, priceAtBeginningMatch[2]);
+    const dishName = priceAtBeginningMatch[3].trim();
     
     return {
       dishName,
@@ -391,6 +460,7 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
   }
   
   // If no price pattern matches, return dish name with no price
+  console.log(`❌ No price pattern matched for "${trimmedLine}"`);
   return {
     dishName: trimmedLine,
     prices: [],

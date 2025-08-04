@@ -35,6 +35,7 @@ import { CartButton } from "@/components/CartButton";
 import { DishCard } from "@/components/dish-card";
 import { parseMenuWithAI } from "@/utils/smartMenuParser";
 import { parseMenuWithGPT4 } from "@/utils/smartMenuParserGPT4";
+import DebugPanel from "@/components/DebugPanel";
 
 type Screen =
   | "welcome"
@@ -1528,5 +1529,10 @@ export default function MenuTranslatorDesign() {
     );
   }
 
-  return null;
+  return (
+    <>
+      <DebugPanel />
+      {null}
+    </>
+  );
 }

@@ -157,51 +157,69 @@ class DebugExporter {
   exportForDeveloper(): string {
     const debugData = this.exportDebugData();
     
+    // Handle case where no debug session has been started
+    if (!debugData.sessionId) {
+      return `
+# MenuMate Debug Report
+**Status:** No debug session active
+
+## Instructions
+1. Upload a menu image to start a debug session
+2. The debug data will be automatically collected during OCR processing
+3. Return here to export the debug report
+
+## Manual Testing
+You can run manual tests in the console:
+- \`testPriceExtraction()\` - Test price parsing with sample data
+- \`MenuMateDebug.export()\` - Export current debug data
+`;
+    }
+    
     const summary = `
 # MenuMate Debug Report
-**Session:** ${debugData.sessionId}
-**Timestamp:** ${debugData.timestamp}
+**Session:** ${debugData.sessionId || 'Unknown'}
+**Timestamp:** ${debugData.timestamp || 'Unknown'}
 
 ## Image Info
-- **File:** ${debugData.imageInfo.name}
-- **Size:** ${(debugData.imageInfo.size / 1024 / 1024).toFixed(2)}MB
-- **Type:** ${debugData.imageInfo.type}
+- **File:** ${debugData.imageInfo?.name || 'No image processed'}
+- **Size:** ${debugData.imageInfo?.size ? (debugData.imageInfo.size / 1024 / 1024).toFixed(2) + 'MB' : 'Unknown'}
+- **Type:** ${debugData.imageInfo?.type || 'Unknown'}
 
 ## OCR Performance
-- **Processing Time:** ${debugData.ocrResults.processingTime}ms
-- **Text Length:** ${debugData.ocrResults.textLength} characters
-- **Confidence:** ${(debugData.ocrResults.confidence * 100).toFixed(1)}%
-- **Thai Words:** ${debugData.ocrResults.thaiWords}
-- **Price Matches:** ${debugData.ocrResults.priceMatches.length}
-- **Lines:** ${debugData.ocrResults.linesAnalyzed}
+- **Processing Time:** ${debugData.ocrResults?.processingTime || 0}ms
+- **Text Length:** ${debugData.ocrResults?.textLength || 0} characters
+- **Confidence:** ${debugData.ocrResults?.confidence ? (debugData.ocrResults.confidence * 100).toFixed(1) : 0}%
+- **Thai Words:** ${debugData.ocrResults?.thaiWords || 0}
+- **Price Matches:** ${debugData.ocrResults?.priceMatches?.length || 0}
+- **Lines:** ${debugData.ocrResults?.linesAnalyzed || 0}
 
 ## Parsing Results
-- **Total Dishes:** ${debugData.parsingResults.totalDishes}
-- **With Prices:** ${debugData.parsingResults.dishesWithPrices}
-- **Without Prices:** ${debugData.parsingResults.dishesWithoutPrices}
-- **Success Rate:** ${((debugData.parsingResults.dishesWithPrices / debugData.parsingResults.totalDishes) * 100).toFixed(1)}%
-- **Average Confidence:** ${(debugData.parsingResults.averageConfidence * 100).toFixed(1)}%
+- **Total Dishes:** ${debugData.parsingResults?.totalDishes || 0}
+- **With Prices:** ${debugData.parsingResults?.dishesWithPrices || 0}
+- **Without Prices:** ${debugData.parsingResults?.dishesWithoutPrices || 0}
+- **Success Rate:** ${debugData.parsingResults?.totalDishes ? ((debugData.parsingResults.dishesWithPrices / debugData.parsingResults.totalDishes) * 100).toFixed(1) : 0}%
+- **Average Confidence:** ${debugData.parsingResults?.averageConfidence ? (debugData.parsingResults.averageConfidence * 100).toFixed(1) : 0}%
 
-## Issues Found (${debugData.parsingResults.parsingIssues.length})
-${debugData.parsingResults.parsingIssues.map(issue => 
+## Issues Found (${debugData.parsingResults?.parsingIssues?.length || 0})
+${debugData.parsingResults?.parsingIssues?.map(issue => 
   `- **${issue.issue}**: "${issue.line}"${issue.suggestedFix ? ` (Fix: ${issue.suggestedFix})` : ''}`
-).join('\\n')}
+).join('\\n') || 'No issues recorded'}
 
-## Rejected Lines (${debugData.parsingResults.rejectedLines.length})
-${debugData.parsingResults.rejectedLines.map(line => `- ${line}`).join('\\n')}
+## Rejected Lines (${debugData.parsingResults?.rejectedLines?.length || 0})
+${debugData.parsingResults?.rejectedLines?.map(line => `- ${line}`).join('\\n') || 'No rejections recorded'}
 
 ## Detected Dishes
-${debugData.dishes.map((dish, i) => 
+${debugData.dishes?.map((dish, i) => 
   `${i+1}. **${dish.name}** - ${dish.price} (${(dish.confidence * 100).toFixed(0)}% confidence)${dish.processingNotes ? ' - ' + dish.processingNotes.join(', ') : ''}`
-).join('\\n')}
+).join('\\n') || 'No dishes detected'}
 
 ## Raw OCR Text
 \\\`\\\`\\\`
-${debugData.ocrResults.extractedText}
+${debugData.ocrResults?.extractedText || 'No OCR text available'}
 \\\`\\\`\\\`
 
 ## Price Matches Found
-${debugData.ocrResults.priceMatches.map(price => `- ${price}`).join('\\n')}
+${debugData.ocrResults?.priceMatches?.map(price => `- ${price}`).join('\\n') || 'No price matches found'}
 `;
     
     return summary;

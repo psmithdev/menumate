@@ -92,12 +92,17 @@ export async function parseMenuWithAI(imageFile: File): Promise<SmartMenuResult>
       );
     }
     
-    return {
+    const finalResult = {
       ...result,
       dishes: validation.filteredDishes,
       totalDishes: validation.filteredDishes.length,
       confidence: calculateOverallConfidence(validation.filteredDishes),
     };
+    
+    // Finalize debug session
+    finalizeParsing(finalResult);
+    
+    return finalResult;
     
   } catch (error) {
     console.error('Smart menu parsing failed:', error);
@@ -109,6 +114,13 @@ export async function parseMenuWithAI(imageFile: File): Promise<SmartMenuResult>
  * Extract text using Google Cloud Vision API
  */
 async function extractTextWithGoogleVision(imageFile: File): Promise<{ text: string; confidence: number }> {
+  // Start debug session
+  startDebugSession({
+    name: imageFile.name,
+    size: imageFile.size,
+    type: imageFile.type
+  });
+
   const formData = new FormData();
   formData.append("image", imageFile);
 
@@ -129,6 +141,9 @@ async function extractTextWithGoogleVision(imageFile: File): Promise<{ text: str
   if (!data.text || data.text.trim().length === 0) {
     throw new Error("No text detected in image");
   }
+
+  // Log OCR results for debugging
+  logOCRResults(data);
 
   return {
     text: data.text,

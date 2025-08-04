@@ -1030,6 +1030,9 @@ export default function MenuTranslatorDesign() {
             <Camera className="w-6 h-6" />
           </Button>
         </div>
+        
+        {/* Debug Panel */}
+        <DebugPanel />
       </div>
     );
   }

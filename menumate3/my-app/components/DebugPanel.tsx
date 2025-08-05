@@ -40,20 +40,15 @@ export default function DebugPanel() {
   return (
     <>
       {/* Debug Toggle Button */}
-      <div
-        style={{
-          position: "fixed",
-          bottom: "20px",
-          right: "20px",
-          zIndex: 9999,
-          backgroundColor: "red",
-          color: "white",
-          padding: "20px",
-          fontSize: "24px",
-        }}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="fixed bottom-20 right-4 z-50 bg-orange-500 
+  hover:bg-orange-600 text-white p-3 rounded-full shadow-lg 
+  transition-all duration-200"
+        title="Debug Tools"
       >
-        DEBUG TEST
-      </div>
+        🛠️
+      </button>
 
       {/* Debug Panel */}
       {isOpen && (

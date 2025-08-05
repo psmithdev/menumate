@@ -15,6 +15,7 @@ export interface DebugSession {
     confidence: number;
     extractedText: string;
     priceMatches: string[];
+    potentialPrices: string[];
     thaiWords: number;
     linesAnalyzed: number;
   };
@@ -29,6 +30,31 @@ export interface DebugSession {
       issue: string;
       suggestedFix?: string;
     }>;
+    expectedDishes?: number;
+    successRate?: number;
+    patternMatchingDetails: Array<{
+      line: string;
+      isDishLine: boolean;
+      patternsAttempted: string[];
+      patternResults: Array<{
+        pattern: string;
+        matched: boolean;
+        extractedData?: any;
+        failureReason?: string;
+      }>;
+      classification: 'dish' | 'header' | 'price-only' | 'description' | 'other';
+      classificationReason: string;
+    }>;
+    priceExtractionAnalysis: {
+      totalPricesFound: number;
+      totalPricesExtracted: number;
+      extractionFailures: Array<{
+        line: string;
+        foundPrices: string[];
+        extractedPrice?: string;
+        failureReason: string;
+      }>;
+    };
   };
   dishes: Array<{
     name: string;
@@ -44,6 +70,12 @@ export interface DebugSession {
     parsingTime: number;
     totalTime: number;
   };
+  recommendations: Array<{
+    priority: 'high' | 'medium' | 'low';
+    issue: string;
+    solution: string;
+    codeChange?: string;
+  }>;
 }
 
 class DebugExporter {
@@ -61,6 +93,7 @@ class DebugExporter {
         confidence: 0,
         extractedText: '',
         priceMatches: [],
+        potentialPrices: [],
         thaiWords: 0,
         linesAnalyzed: 0
       },
@@ -70,8 +103,15 @@ class DebugExporter {
         dishesWithoutPrices: 0,
         averageConfidence: 0,
         rejectedLines: [],
-        parsingIssues: []
+        parsingIssues: [],
+        patternMatchingDetails: [],
+        priceExtractionAnalysis: {
+          totalPricesFound: 0,
+          totalPricesExtracted: 0,
+          extractionFailures: []
+        }
       },
+      recommendations: [],
       dishes: [],
       performanceMetrics: {
         ocrTime: 0,
@@ -86,17 +126,20 @@ class DebugExporter {
   logOCRResults(results: any) {
     if (!this.currentSession.ocrResults) return;
     
+    const priceAnalysis = this.extractPriceMatches(results.text || '');
+    
     this.currentSession.ocrResults = {
       processingTime: results.processingTime || 0,
       textLength: results.text?.length || 0,
       confidence: results.confidence || 0,
       extractedText: results.text || '',
-      priceMatches: this.extractPriceMatches(results.text || ''),
+      priceMatches: priceAnalysis.directMatches,
+      potentialPrices: priceAnalysis.potentialPrices,
       thaiWords: this.countThaiWords(results.text || ''),
       linesAnalyzed: (results.text || '').split('\\n').length
     };
     
-    console.log(`📊 OCR Results logged: ${this.currentSession.ocrResults.textLength} chars, ${this.currentSession.ocrResults.priceMatches.length} prices`);
+    console.log(`📊 OCR Results logged: ${this.currentSession.ocrResults.textLength} chars, ${this.currentSession.ocrResults.priceMatches.length} direct prices, ${this.currentSession.ocrResults.potentialPrices.length} potential prices`);
   }
   
   logParsingIssue(line: string, issue: string, suggestedFix?: string) {
@@ -131,6 +174,72 @@ class DebugExporter {
     this.currentSession.parsingResults.rejectedLines.push(`${line} (${reason})`);
     console.log(`❌ Rejected line: "${line}" - ${reason}`);
   }
+
+  logPatternMatchingDetails(
+    line: string, 
+    isDishLine: boolean, 
+    patternsAttempted: string[], 
+    patternResults: Array<{
+      pattern: string;
+      matched: boolean;
+      extractedData?: any;
+      failureReason?: string;
+    }>,
+    classification: 'dish' | 'header' | 'price-only' | 'description' | 'other',
+    classificationReason: string
+  ) {
+    if (!this.currentSession.parsingResults) return;
+    
+    this.currentSession.parsingResults.patternMatchingDetails.push({
+      line,
+      isDishLine,
+      patternsAttempted,
+      patternResults,
+      classification,
+      classificationReason
+    });
+    
+    console.log(`🔍 Pattern analysis for "${line}": ${classification} (${classificationReason})`);
+  }
+
+  logPriceExtractionFailure(line: string, foundPrices: string[], extractedPrice: string | undefined, failureReason: string) {
+    if (!this.currentSession.parsingResults) return;
+    
+    this.currentSession.parsingResults.priceExtractionAnalysis.extractionFailures.push({
+      line,
+      foundPrices,
+      extractedPrice,
+      failureReason
+    });
+
+    // Update totals
+    this.currentSession.parsingResults.priceExtractionAnalysis.totalPricesFound += foundPrices.length;
+    if (extractedPrice && extractedPrice !== 'Price not detected' && extractedPrice !== 'Price not shown') {
+      this.currentSession.parsingResults.priceExtractionAnalysis.totalPricesExtracted++;
+    }
+    
+    console.log(`💰 Price extraction failed for "${line}": found ${foundPrices.length} prices, extracted: ${extractedPrice || 'none'} - ${failureReason}`);
+  }
+
+  addRecommendation(priority: 'high' | 'medium' | 'low', issue: string, solution: string, codeChange?: string) {
+    if (!this.currentSession.recommendations) return;
+    
+    this.currentSession.recommendations.push({
+      priority,
+      issue,
+      solution,
+      codeChange
+    });
+    
+    console.log(`💡 ${priority.toUpperCase()} PRIORITY: ${issue} - ${solution}`);
+  }
+
+  setExpectedDishes(count: number) {
+    if (!this.currentSession.parsingResults) return;
+    
+    this.currentSession.parsingResults.expectedDishes = count;
+    console.log(`🎯 Expected dishes set to: ${count}`);
+  }
   
   finalizeParsing(finalResults: any) {
     if (!this.currentSession.parsingResults || !this.currentSession.dishes) return;
@@ -138,16 +247,87 @@ class DebugExporter {
     const dishesWithPrices = this.currentSession.dishes.filter(d => 
       d.price && d.price !== 'Price not detected' && d.price !== 'Price not shown'
     ).length;
+
+    // Calculate success rate if expected dishes is set
+    let successRate = 0;
+    if (this.currentSession.parsingResults.expectedDishes) {
+      successRate = (this.currentSession.dishes.length / this.currentSession.parsingResults.expectedDishes) * 100;
+    }
     
     this.currentSession.parsingResults = {
       ...this.currentSession.parsingResults,
       totalDishes: this.currentSession.dishes.length,
       dishesWithPrices,
       dishesWithoutPrices: this.currentSession.dishes.length - dishesWithPrices,
-      averageConfidence: this.currentSession.dishes.reduce((sum, d) => sum + d.confidence, 0) / this.currentSession.dishes.length
+      averageConfidence: this.currentSession.dishes.length > 0 ? 
+        this.currentSession.dishes.reduce((sum, d) => sum + d.confidence, 0) / this.currentSession.dishes.length : 0,
+      successRate
     };
+
+    // Generate automated recommendations
+    this.generateAutomaticRecommendations();
     
-    console.log(`✅ Parsing finalized: ${this.currentSession.parsingResults.totalDishes} dishes, ${dishesWithPrices} with prices`);
+    console.log(`✅ Parsing finalized: ${this.currentSession.parsingResults.totalDishes} dishes, ${dishesWithPrices} with prices, ${successRate.toFixed(1)}% success rate`);
+  }
+
+  private generateAutomaticRecommendations() {
+    if (!this.currentSession.parsingResults || !this.currentSession.recommendations) return;
+
+    const results = this.currentSession.parsingResults;
+    
+    // High priority: Low dish detection rate
+    if (results.expectedDishes && results.totalDishes < results.expectedDishes * 0.5) {
+      this.addRecommendation(
+        'high',
+        'Very low dish detection rate',
+        'Review isDishLine() logic - many valid dishes may be classified as headers',
+        'Examine the dish classification patterns in dishParser.ts'
+      );
+    }
+
+    // High priority: No price extraction despite prices found
+    if (results.priceExtractionAnalysis.totalPricesFound > 0 && results.priceExtractionAnalysis.totalPricesExtracted === 0) {
+      this.addRecommendation(
+        'high',
+        'Price extraction completely failing',
+        'Review price extraction regex patterns - prices are detected but not extracted',
+        'Check price extraction patterns in dishParser.ts parseDishLine() function'
+      );
+    }
+
+    // Medium priority: Low price extraction rate
+    const priceExtractionRate = results.priceExtractionAnalysis.totalPricesFound > 0 ? 
+      (results.priceExtractionAnalysis.totalPricesExtracted / results.priceExtractionAnalysis.totalPricesFound) * 100 : 0;
+    
+    if (priceExtractionRate < 50 && results.priceExtractionAnalysis.totalPricesFound > 5) {
+      this.addRecommendation(
+        'medium',
+        'Low price extraction success rate',
+        'Improve regex patterns to handle Thai price formats like "120/220 บาท"',
+        'Add support for slash-separated prices and better Thai number parsing'
+      );
+    }
+
+    // Medium priority: Many pattern matching failures
+    const patternFailures = results.patternMatchingDetails.filter(d => d.isDishLine && d.patternResults.every(p => !p.matched));
+    if (patternFailures.length > 3) {
+      this.addRecommendation(
+        'medium',
+        'Multiple pattern matching failures',
+        'Add new regex patterns to handle Thai dish name formats',
+        'Review failed lines and add specific patterns for common Thai dish structures'
+      );
+    }
+
+    // Low priority: Performance optimization
+    if (this.currentSession.ocrResults && this.currentSession.ocrResults.processingTime > 5000) {
+      this.addRecommendation(
+        'low',
+        'Slow OCR processing',
+        'Consider image preprocessing or OCR optimization',
+        'Review image compression and OCR API settings'
+      );
+    }
   }
   
   exportDebugData(): DebugSession {
@@ -190,17 +370,41 @@ You can run manual tests in the console:
 - **Text Length:** ${debugData.ocrResults?.textLength || 0} characters
 - **Confidence:** ${debugData.ocrResults?.confidence ? (debugData.ocrResults.confidence * 100).toFixed(1) : 0}%
 - **Thai Words:** ${debugData.ocrResults?.thaiWords || 0}
-- **Price Matches:** ${debugData.ocrResults?.priceMatches?.length || 0}
+- **Direct Price Matches:** ${debugData.ocrResults?.priceMatches?.length || 0}
+- **Potential Prices:** ${debugData.ocrResults?.potentialPrices?.length || 0}
 - **Lines:** ${debugData.ocrResults?.linesAnalyzed || 0}
 
 ## Parsing Results
-- **Total Dishes:** ${debugData.parsingResults?.totalDishes || 0}
+- **Expected Dishes:** ${debugData.parsingResults?.expectedDishes || 'Not specified'}
+- **Total Dishes Found:** ${debugData.parsingResults?.totalDishes || 0}
 - **With Prices:** ${debugData.parsingResults?.dishesWithPrices || 0}
 - **Without Prices:** ${debugData.parsingResults?.dishesWithoutPrices || 0}
-- **Success Rate:** ${debugData.parsingResults?.totalDishes ? ((debugData.parsingResults.dishesWithPrices / debugData.parsingResults.totalDishes) * 100).toFixed(1) : 0}%
-- **Average Confidence:** ${debugData.parsingResults?.averageConfidence ? (debugData.parsingResults.averageConfidence * 100).toFixed(1) : 0}%
+- **Detection Success Rate:** ${debugData.parsingResults?.successRate ? debugData.parsingResults.successRate.toFixed(1) + '%' : 'N/A'}
+- **Price Success Rate:** ${debugData.parsingResults?.totalDishes ? ((debugData.parsingResults.dishesWithPrices / debugData.parsingResults.totalDishes) * 100).toFixed(1) + '%' : '0%'}
+- **Average Confidence:** ${debugData.parsingResults?.averageConfidence ? (debugData.parsingResults.averageConfidence * 100).toFixed(1) + '%' : '0%'}
 
-## Issues Found (${debugData.parsingResults?.parsingIssues?.length || 0})
+## Price Extraction Analysis
+- **Total Prices Found in OCR:** ${debugData.parsingResults?.priceExtractionAnalysis?.totalPricesFound || 0}
+- **Total Prices Successfully Extracted:** ${debugData.parsingResults?.priceExtractionAnalysis?.totalPricesExtracted || 0}
+- **Price Extraction Rate:** ${debugData.parsingResults?.priceExtractionAnalysis?.totalPricesFound ? 
+  ((debugData.parsingResults.priceExtractionAnalysis.totalPricesExtracted / debugData.parsingResults.priceExtractionAnalysis.totalPricesFound) * 100).toFixed(1) + '%' : '0%'}
+
+### Price Extraction Failures (${debugData.parsingResults?.priceExtractionAnalysis?.extractionFailures?.length || 0})
+${debugData.parsingResults?.priceExtractionAnalysis?.extractionFailures?.map(failure => 
+  `- **"${failure.line}"**\\n  - Found prices: [${failure.foundPrices.join(', ')}]\\n  - Extracted: ${failure.extractedPrice || 'none'}\\n  - Reason: ${failure.failureReason}`
+).join('\\n') || 'No extraction failures recorded'}
+
+## Pattern Matching Analysis (${debugData.parsingResults?.patternMatchingDetails?.length || 0} lines)
+${debugData.parsingResults?.patternMatchingDetails?.map(detail => 
+  `### "${detail.line}"\\n- **Classification:** ${detail.classification} (${detail.classificationReason})\\n- **Is Dish Line:** ${detail.isDishLine}\\n- **Patterns Attempted:** ${detail.patternsAttempted.join(', ')}\\n- **Pattern Results:**\\n${detail.patternResults.map(p => `  - ${p.pattern}: ${p.matched ? '✅ Matched' : '❌ Failed'}${p.failureReason ? ' (' + p.failureReason + ')' : ''}`).join('\\n')}`
+).join('\\n\\n') || 'No pattern matching details recorded'}
+
+## Automated Recommendations
+${debugData.recommendations?.map(rec => 
+  `### ${rec.priority.toUpperCase()} PRIORITY: ${rec.issue}\\n**Solution:** ${rec.solution}${rec.codeChange ? '\\n**Code Change:** ' + rec.codeChange : ''}`
+).join('\\n\\n') || 'No recommendations generated'}
+
+## Traditional Issues Found (${debugData.parsingResults?.parsingIssues?.length || 0})
 ${debugData.parsingResults?.parsingIssues?.map(issue => 
   `- **${issue.issue}**: "${issue.line}"${issue.suggestedFix ? ` (Fix: ${issue.suggestedFix})` : ''}`
 ).join('\\n') || 'No issues recorded'}
@@ -218,8 +422,11 @@ ${debugData.dishes?.map((dish, i) =>
 ${debugData.ocrResults?.extractedText || 'No OCR text available'}
 \\\`\\\`\\\`
 
-## Price Matches Found
-${debugData.ocrResults?.priceMatches?.map(price => `- ${price}`).join('\\n') || 'No price matches found'}
+## Direct Price Matches Found
+${debugData.ocrResults?.priceMatches?.map(price => `- ${price}`).join('\\n') || 'No direct price matches found'}
+
+## Potential Price Numbers Found  
+${debugData.ocrResults?.potentialPrices?.map(price => `- ${price}`).join('\\n') || 'No potential prices found'}
 `;
     
     return summary;
@@ -258,10 +465,13 @@ ${debugData.ocrResults?.priceMatches?.map(price => `- ${price}`).join('\\n') || 
     }
   }
   
-  private extractPriceMatches(text: string): string[] {
-    const priceMatches = text.match(/\\d+\\s*(?:บาท|baht|฿)/gi) || [];
-    const numberMatches = text.match(/\\b\\d{2,4}\\b/g) || [];
-    return [...priceMatches, ...numberMatches.slice(0, 10)]; // Limit numbers to prevent spam
+  private extractPriceMatches(text: string): { directMatches: string[], potentialPrices: string[] } {
+    const directMatches = text.match(/\\d+\\s*(?:บาท|baht|฿)/gi) || [];
+    const potentialPrices = text.match(/\\b\\d{2,4}\\b/g) || [];
+    return {
+      directMatches,
+      potentialPrices: potentialPrices.slice(0, 20) // Include more for analysis
+    };
   }
   
   private countThaiWords(text: string): number {
@@ -308,6 +518,34 @@ export function downloadDebugReport() {
 
 export function copyDebugToClipboard() {
   debugExporter.copyToClipboard();
+}
+
+export function logPatternMatchingDetails(
+  line: string, 
+  isDishLine: boolean, 
+  patternsAttempted: string[], 
+  patternResults: Array<{
+    pattern: string;
+    matched: boolean;
+    extractedData?: any;
+    failureReason?: string;
+  }>,
+  classification: 'dish' | 'header' | 'price-only' | 'description' | 'other',
+  classificationReason: string
+) {
+  debugExporter.logPatternMatchingDetails(line, isDishLine, patternsAttempted, patternResults, classification, classificationReason);
+}
+
+export function logPriceExtractionFailure(line: string, foundPrices: string[], extractedPrice: string | undefined, failureReason: string) {
+  debugExporter.logPriceExtractionFailure(line, foundPrices, extractedPrice, failureReason);
+}
+
+export function addRecommendation(priority: 'high' | 'medium' | 'low', issue: string, solution: string, codeChange?: string) {
+  debugExporter.addRecommendation(priority, issue, solution, codeChange);
+}
+
+export function setExpectedDishes(count: number) {
+  debugExporter.setExpectedDishes(count);
 }
 
 // Add global debug functions to window for easy console access

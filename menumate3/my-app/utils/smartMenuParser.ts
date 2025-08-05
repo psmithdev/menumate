@@ -170,22 +170,24 @@ function parseTextToDishes(text: string): SmartDish[] {
   
   // Enhanced Thai menu parsing patterns
   const thaiPatterns = {
-    // Enhanced price patterns with better currency detection
-    price: /(?:กิโลละ\s*)?(\d+(?:[-\/,]\d+)?)\s*(?:ปอนด์|\s*)(?:บาท|baht|฿|\$)/gi,
-    // Just numbers that could be prices (2-4 digits)
+    // Enhanced price patterns with better currency detection including พิเศษ format
+    price: /(?:กิโลละ\s*)?(\d+(?:[-\/,]\d+)?)\s*(?:ปอนด์|\s*)(?:บาท|baht|฿|\$|พิเศษ)/gi,
+    // Just numbers that could be prices (2-4 digits) 
     standaloneNumbers: /\b(\d{2,4})\b/g,
-    // Price with size indicators
-    sizedPrice: /(?:เล็ก|กลาง|ใหญ่|S|M|L)\s*(\d{2,4})\s*(?:บาท|฿)?/gi,
+    // Price with size indicators including พิเศษ
+    sizedPrice: /(?:เล็ก|กลาง|ใหญ่|พิเศษ|S|M|L)\s*(\d{2,4})\s*(?:บาท|฿|พิเศษ)?/gi,
+    // Thai price format: number + พิเศษ + number (e.g., "40 พิเศษ 50")
+    thaiSpecialPrice: /(\d{2,4})\s*พิเศษ\s*(\d{2,4})/gi,
     // Dish name patterns - Thai characters
     thaiText: /[ก-๙]+/,
-    // Range price pattern specifically
-    rangePrice: /(\d+)[\/\-](\d+)\s*(?:บาท|฿)?/gi,
-    // Multiple prices on same line
-    multiplePrices: /(\d{2,4})\s*[\/\s]\s*(\d{2,4})(?:\s*[\/\s]\s*(\d{2,4}))?\s*(?:บาท|฿)?/gi
+    // Range price pattern specifically including พิเศษ
+    rangePrice: /(\d+)[\/\-](\d+)\s*(?:บาท|฿|พิเศษ)?/gi,
+    // Multiple prices on same line including พิเศษ format
+    multiplePrices: /(\d{2,4})\s*(?:[\/\s]|พิเศษ)\s*(\d{2,4})(?:\s*[\/\s]\s*(\d{2,4}))?\s*(?:บาท|฿|พิเศษ)?/gi
   };
   
-  // Set expected dishes based on console output showing 11 expected dishes
-  setExpectedDishes(11);
+  // Set expected dishes based on manual count from image - approximately 16 dishes
+  setExpectedDishes(16);
 
   // First pass: Find all lines with prices and potential dish names
   const priceLines: { index: number; price: string; line: string }[] = [];
@@ -216,52 +218,99 @@ function parseTextToDishes(text: string): SmartDish[] {
     // Enhanced price detection with multiple patterns
     let foundPriceOnLine = false;
     
-    // Pattern 1: Explicit price with currency - Fixed regex capture
-    patternsAttempted.push('explicit-price-with-currency');
-    const explicitPriceMatch = line.match(/(?:กิโลละ\s*)?(\d+(?:[-\/,]\d+)?)\s*(?:ปอนด์|\s*)(?:บาท|baht|฿|\$)/gi);
-    if (explicitPriceMatch && explicitPriceMatch.length > 0) {
-      // Extract the first price number from the match
-      const fullMatch = explicitPriceMatch[0];
-      const priceNumber = fullMatch.match(/(\d+(?:[-\/,]\d+)?)/);  
-      if (priceNumber) {
-        const price = priceNumber[1];
-        console.log(`💰 Found explicit price on line ${index}: "${line}" -> ${price} บาท`);
-        priceLines.push({ index, price, line });
+    // Pattern 1: Thai พิเศษ format (e.g., "40 พิเศษ 50") - NEW PRIORITY PATTERN
+    patternsAttempted.push('thai-special-price-format');
+    const thaiSpecialMatch = line.match(/(\d{2,4})\s*พิเศษ\s*(\d{2,4})/gi);
+    if (thaiSpecialMatch && thaiSpecialMatch.length > 0) {
+      const fullMatch = thaiSpecialMatch[0];
+      const priceNumbers = fullMatch.match(/(\d{2,4})/g);
+      if (priceNumbers && priceNumbers.length >= 2) {
+        const regularPrice = priceNumbers[0];
+        const specialPrice = priceNumbers[1];
+        console.log(`💰 Found Thai พิเศษ price on line ${index}: "${line}" -> ${regularPrice}/${specialPrice} บาท`);
+        priceLines.push({ index, price: regularPrice, line });
         foundPriceOnLine = true;
         
         patternResults.push({
-          pattern: 'explicit-price-with-currency',
+          pattern: 'thai-special-price-format',
           matched: true,
-          extractedData: { price, fullMatch }
+          extractedData: { regularPrice, specialPrice, fullMatch }
         });
         
         // Check if the same line has a dish name
         const dishName = line.replace(fullMatch, '').trim();
         const cleanName = cleanDishName(dishName);
         if (cleanName && cleanName.length > 2 && hasThaiText(cleanName)) {
-          console.log(`🍽️ Found dish with explicit price on same line: "${cleanName}"`);
+          console.log(`🍽️ Found dish with Thai พิเศษ price: "${cleanName}" -> ${regularPrice}/${specialPrice} บาท`);
           dishes.push({
             name: cleanName,
-            price: `${price} บาท`,
+            price: `${regularPrice}/${specialPrice} บาท`,
             confidence: 0.95,
             category: categorizeByName(cleanName)
           });
           logDishResult({
             name: cleanName,
-            price: `${price} บาท`,
+            price: `${regularPrice}/${specialPrice} บาท`,
             confidence: 0.95
-          }, line, ['explicit-price-same-line']);
+          }, line, ['thai-special-price-same-line']);
         }
       }
     } else {
       patternResults.push({
-        pattern: 'explicit-price-with-currency',
+        pattern: 'thai-special-price-format',
         matched: false,
-        failureReason: 'No explicit price with currency found'
+        failureReason: 'No Thai พิเศษ price format found'
       });
     }
+
+    // Pattern 2: Explicit price with currency - Fixed regex capture
+    if (!foundPriceOnLine) {
+      patternsAttempted.push('explicit-price-with-currency');
+      const explicitPriceMatch = line.match(/(?:กิโลละ\s*)?(\d+(?:[-\/,]\d+)?)\s*(?:ปอนด์|\s*)(?:บาท|baht|฿|\$)/gi);
+      if (explicitPriceMatch && explicitPriceMatch.length > 0) {
+        // Extract the first price number from the match
+        const fullMatch = explicitPriceMatch[0];
+        const priceNumber = fullMatch.match(/(\d+(?:[-\/,]\d+)?)/);  
+        if (priceNumber) {
+          const price = priceNumber[1];
+          console.log(`💰 Found explicit price on line ${index}: "${line}" -> ${price} บาท`);
+          priceLines.push({ index, price, line });
+          foundPriceOnLine = true;
+          
+          patternResults.push({
+            pattern: 'explicit-price-with-currency',
+            matched: true,
+            extractedData: { price, fullMatch }
+          });
+          
+          // Check if the same line has a dish name
+          const dishName = line.replace(fullMatch, '').trim();
+          const cleanName = cleanDishName(dishName);
+          if (cleanName && cleanName.length > 2 && hasThaiText(cleanName)) {
+            console.log(`🍽️ Found dish with explicit price on same line: "${cleanName}"`);
+            dishes.push({
+              name: cleanName,
+              price: `${price} บาท`,
+              confidence: 0.95,
+              category: categorizeByName(cleanName)
+            });
+            logDishResult({
+              name: cleanName,
+              price: `${price} บาท`,
+              confidence: 0.95
+            }, line, ['explicit-price-same-line']);
+          }
+        }
+      } else {
+        patternResults.push({
+          pattern: 'explicit-price-with-currency',
+          matched: false,
+          failureReason: 'No explicit price with currency found'
+        });
+      }
+    }
     
-    // Pattern 2: Multiple prices (e.g., "80/100/120") - Fixed regex capture
+    // Pattern 3: Multiple prices (e.g., "80/100/120") - Fixed regex capture
     if (!foundPriceOnLine) {
       patternsAttempted.push('multiple-prices-slash-separated');
       const multiplePriceMatch = line.match(/(\d{2,4})\s*[\/\s]\s*(\d{2,4})(?:\s*[\/\s]\s*(\d{2,4}))?\s*(?:บาท|฿)?/gi);
@@ -319,7 +368,7 @@ function parseTextToDishes(text: string): SmartDish[] {
       }
     }
     
-    // Pattern 3: Standalone numbers that could be prices
+    // Pattern 4: Standalone numbers that could be prices
     if (!foundPriceOnLine && hasThaiText(line)) {
       patternsAttempted.push('standalone-numbers-with-thai');
       const standaloneNumberMatches = Array.from(line.matchAll(thaiPatterns.standaloneNumbers));

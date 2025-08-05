@@ -253,6 +253,10 @@ function parseTextToDishes(text: string): SmartDish[] {
             price: `${regularPrice}/${specialPrice} บาท`,
             confidence: 0.95
           }, line, ['thai-special-price-same-line']);
+        } else {
+          // No dish name on same line, just record the price for later matching
+          console.log(`💰 Found standalone Thai พิเศษ price: "${fullMatch}" - will match with nearby dish`);
+          priceLines.push({ index, price: `${regularPrice}/${specialPrice}`, line });
         }
       }
     } else {
@@ -374,7 +378,14 @@ function parseTextToDishes(text: string): SmartDish[] {
       const standaloneNumberMatches = Array.from(line.matchAll(thaiPatterns.standaloneNumbers));
       const validPriceNumbers = standaloneNumberMatches.filter(match => {
         const num = parseInt(match[1]);
-        return num >= 20 && num <= 2000; // Reasonable price range
+        const numStr = match[1];
+        
+        // Exclude phone number segments
+        const isPhoneNumber = /\d{3}-\d{7}|\d{10}/.test(line) || 
+                             numStr.startsWith('0') || 
+                             numStr.length > 3;
+        
+        return num >= 20 && num <= 2000 && !isPhoneNumber; // Reasonable price range, not phone
       });
       
       if (validPriceNumbers.length > 0) {
@@ -409,7 +420,7 @@ function parseTextToDishes(text: string): SmartDish[] {
         patternResults.push({
           pattern: 'standalone-numbers-with-thai',
           matched: false,
-          failureReason: `Found ${standaloneNumberMatches.length} numbers, none in valid price range`
+          failureReason: `Found ${standaloneNumberMatches.length} numbers, none in valid price range or excluded phone numbers`
         });
       }
     }
@@ -499,8 +510,14 @@ function parseTextToDishes(text: string): SmartDish[] {
         confidence: Math.max(0.75, 0.95 - (distance * 0.05)), // Reduce confidence based on distance
         category: categorizeByName(candidate.name)
       });
+      
+      logDishResult({
+        name: candidate.name,
+        price: `${closestPrice.price} บาท`,
+        confidence: Math.max(0.75, 0.95 - (distance * 0.05))
+      }, candidate.line, ['nearby-price-match']);
     } else {
-      // Check if there are any unmatched standalone numbers on nearby lines
+      // Enhanced price matching for special cases like "โจ๊กเปล่า" followed by "15"
       const nearbyLines = lines.slice(
         Math.max(0, candidate.index - 2), 
         Math.min(lines.length, candidate.index + 5)
@@ -511,9 +528,10 @@ function parseTextToDishes(text: string): SmartDish[] {
         const line = nearbyLines[i];
         const numbers = Array.from(line.matchAll(thaiPatterns.standaloneNumbers))
           .map(match => parseInt(match[1]))
-          .filter(num => num >= 20 && num <= 2000);
+          .filter(num => num >= 10 && num <= 500); // Expanded range for small prices like 10, 15
         
-        if (numbers.length > 0 && !hasThaiText(line)) {
+        // Check for number-only lines OR lines with minimal Thai text + numbers
+        if (numbers.length > 0 && (line.trim().length <= 3 || !hasThaiText(line))) {
           // Found a line with just numbers - likely prices
           const price = numbers[0];
           console.log(`🔗 Matching "${candidate.name}" with implicit price ${price} บาท (from number-only line)`);
@@ -524,6 +542,13 @@ function parseTextToDishes(text: string): SmartDish[] {
             confidence: 0.75,
             category: categorizeByName(candidate.name)
           });
+          
+          logDishResult({
+            name: candidate.name,
+            price: `${price} บาท`,
+            confidence: 0.75
+          }, candidate.line, ['implicit-price-match']);
+          
           foundImplicitPrice = true;
           break;
         }
@@ -538,6 +563,12 @@ function parseTextToDishes(text: string): SmartDish[] {
           confidence: 0.60, // Lower confidence when no price
           category: categorizeByName(candidate.name)
         });
+        
+        logDishResult({
+          name: candidate.name,
+          price: "Price not detected",
+          confidence: 0.60
+        }, candidate.line, ['no-price-found']);
       }
     }
   });
@@ -582,7 +613,7 @@ function isHeaderLine(line: string): boolean {
   const headers = [
     'เมนูราดข้าว', 'เมนูกับข้าว', 'เครื่องเคียงขาหมู', 
     'menu', 'price', 'ราคา', 'ตั้งซุป', 'ร้าน', 'restaurant',
-    'อาหาร', 'เครื่องดื่ม', 'ของหวาน'
+    'อาหาร', 'เครื่องดื่ม', 'ของหวาน', 'นายฮุย', 'porridge'
   ];
   
   const lowerLine = line.toLowerCase().trim();
@@ -595,12 +626,17 @@ function isHeaderLine(line: string): boolean {
   const isMenuCategory = line.startsWith('เมนู') && line.length < 25;
   const isJustNumbers = /^[\d\s\/\-฿บาท]+$/.test(line.trim()) && !hasThaiText(line);
   
+  // NEW: Detect phone numbers and restaurant names
+  const hasPhoneNumber = /\d{3}-\d{7}|\d{10}/.test(line); // Thai phone format
+  const isRestaurantName = line.includes('นายฮุย') || line.includes('Mr.') || 
+                          (hasPhoneNumber && line.length < 50); // Restaurant name with phone
+  
   // Debug logging for header detection
-  if (isExactHeader || containsHeaderWord || hasDecorations || isBrandLine || isMenuCategory) {
-    console.log(`🚨 Detected header line: "${line}" (exact: ${isExactHeader}, contains: ${containsHeaderWord}, decorations: ${hasDecorations}, brand: ${isBrandLine}, category: ${isMenuCategory})`);
+  if (isExactHeader || containsHeaderWord || hasDecorations || isBrandLine || isMenuCategory || isRestaurantName) {
+    console.log(`🚨 Detected header line: "${line}" (exact: ${isExactHeader}, contains: ${containsHeaderWord}, decorations: ${hasDecorations}, brand: ${isBrandLine}, category: ${isMenuCategory}, restaurant: ${isRestaurantName})`);
   }
   
-  return isExactHeader || hasDecorations || isBrandLine || isMenuCategory || isJustNumbers ||
+  return isExactHeader || hasDecorations || isBrandLine || isMenuCategory || isJustNumbers || isRestaurantName ||
          (containsHeaderWord && line.length < 30); // Only exclude short lines with header words
 }
 

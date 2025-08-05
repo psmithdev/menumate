@@ -467,15 +467,22 @@ ${debugData.ocrResults?.potentialPrices?.map(price => `- ${price}`).join('\\n') 
   
   private extractPriceMatches(text: string): { directMatches: string[], potentialPrices: string[] } {
     // Enhanced regex to handle Thai price formats including พิเศษ (special), กิโลละ (per kilo), etc.
-    const directMatches = text.match(/\\d+\\s*(?:บาท|baht|฿|พิเศษ|กิโลละ|ปอนด์)/gi) || [];
+    // Need to match the actual format: "number พิเศษ number" or "number บาท"
+    const directMatches = text.match(/\\d+\\s*(?:บาท|baht|฿)|\\d+\\s*พิเศษ\\s*\\d+/gi) || [];
     
     // Better potential price detection that filters out phone numbers and other non-price numbers
     const potentialPrices = text.match(/\\b\\d{2,4}\\b/g) || [];
     const filteredPotentialPrices = potentialPrices.filter(price => {
       const num = parseInt(price);
+      
+      // Check if this number is part of a phone number pattern
+      const phoneNumberPattern = /\\d{3}-\\d{7}|\\d{10}/;
+      const isInPhoneNumber = phoneNumberPattern.test(text) && text.includes(price);
+      
       // Filter out phone number segments (like 093, 0969) and focus on reasonable price range
       return num >= 10 && num <= 1000 && 
              !price.startsWith('0') && // Exclude numbers starting with 0 (likely phone numbers)
+             !isInPhoneNumber && // Exclude if part of phone number
              price.length <= 3; // Most Thai food prices are 2-3 digits
     });
     

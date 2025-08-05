@@ -9,7 +9,10 @@ import {
   logParsingIssue, 
   logDishResult, 
   logRejectedLine, 
-  finalizeParsing 
+  finalizeParsing,
+  logPatternMatchingDetails,
+  logPriceExtractionFailure,
+  setExpectedDishes
 } from "./debugExporter";
 
 export interface SmartDish {
@@ -181,13 +184,32 @@ function parseTextToDishes(text: string): SmartDish[] {
     multiplePrices: /(\d{2,4})\s*[\/\s]\s*(\d{2,4})(?:\s*[\/\s]\s*(\d{2,4}))?\s*(?:บาท|฿)?/gi
   };
   
+  // Set expected dishes based on console output showing 11 expected dishes
+  setExpectedDishes(11);
+
   // First pass: Find all lines with prices and potential dish names
   const priceLines: { index: number; price: string; line: string }[] = [];
   const dishNameCandidates: { index: number; name: string; line: string }[] = [];
   
   lines.forEach((line, index) => {
+    const patternsAttempted: string[] = [];
+    const patternResults: Array<{
+      pattern: string;
+      matched: boolean;
+      extractedData?: any;
+      failureReason?: string;
+    }> = [];
+
     // Skip headers and very short lines
     if (line.length < 3 || isHeaderLine(line)) {
+      logPatternMatchingDetails(
+        line,
+        false,
+        ['header-check'],
+        [{ pattern: 'header-check', matched: true, extractedData: 'header detected' }],
+        'header',
+        'Line identified as header or too short'
+      );
       return;
     }
     
@@ -195,6 +217,7 @@ function parseTextToDishes(text: string): SmartDish[] {
     let foundPriceOnLine = false;
     
     // Pattern 1: Explicit price with currency - Fixed regex capture
+    patternsAttempted.push('explicit-price-with-currency');
     const explicitPriceMatch = line.match(/(?:กิโลละ\s*)?(\d+(?:[-\/,]\d+)?)\s*(?:ปอนด์|\s*)(?:บาท|baht|฿|\$)/gi);
     if (explicitPriceMatch && explicitPriceMatch.length > 0) {
       // Extract the first price number from the match
@@ -205,6 +228,12 @@ function parseTextToDishes(text: string): SmartDish[] {
         console.log(`💰 Found explicit price on line ${index}: "${line}" -> ${price} บาท`);
         priceLines.push({ index, price, line });
         foundPriceOnLine = true;
+        
+        patternResults.push({
+          pattern: 'explicit-price-with-currency',
+          matched: true,
+          extractedData: { price, fullMatch }
+        });
         
         // Check if the same line has a dish name
         const dishName = line.replace(fullMatch, '').trim();
@@ -217,12 +246,24 @@ function parseTextToDishes(text: string): SmartDish[] {
             confidence: 0.95,
             category: categorizeByName(cleanName)
           });
+          logDishResult({
+            name: cleanName,
+            price: `${price} บาท`,
+            confidence: 0.95
+          }, line, ['explicit-price-same-line']);
         }
       }
+    } else {
+      patternResults.push({
+        pattern: 'explicit-price-with-currency',
+        matched: false,
+        failureReason: 'No explicit price with currency found'
+      });
     }
     
     // Pattern 2: Multiple prices (e.g., "80/100/120") - Fixed regex capture
     if (!foundPriceOnLine) {
+      patternsAttempted.push('multiple-prices-slash-separated');
       const multiplePriceMatch = line.match(/(\d{2,4})\s*[\/\s]\s*(\d{2,4})(?:\s*[\/\s]\s*(\d{2,4}))?\s*(?:บาท|฿)?/gi);
       if (multiplePriceMatch && multiplePriceMatch.length > 0) {
         // Extract all price numbers from the match
@@ -239,6 +280,12 @@ function parseTextToDishes(text: string): SmartDish[] {
           priceLines.push({ index, price: validPrices[0], line });
           foundPriceOnLine = true;
           
+          patternResults.push({
+            pattern: 'multiple-prices-slash-separated',
+            matched: true,
+            extractedData: { validPrices, selectedPrice: validPrices[0] }
+          });
+          
           // Check for dish name on same line - remove price pattern
           let dishName = line.replace(/\d{2,4}[\s\/]*\d{2,4}[\s\/]*\d{0,4}\s*(?:บาท|฿)?/gi, '').trim();
           const cleanName = cleanDishName(dishName);
@@ -250,13 +297,31 @@ function parseTextToDishes(text: string): SmartDish[] {
               confidence: 0.90,
               category: categorizeByName(cleanName)
             });
+            logDishResult({
+              name: cleanName,
+              price: `${validPrices.join('/')} บาท`,
+              confidence: 0.90
+            }, line, ['multiple-prices-same-line']);
           }
+        } else {
+          patternResults.push({
+            pattern: 'multiple-prices-slash-separated',
+            matched: false,
+            failureReason: `Found ${validPrices.length} valid prices, need 2+`
+          });
         }
+      } else {
+        patternResults.push({
+          pattern: 'multiple-prices-slash-separated',
+          matched: false,
+          failureReason: 'No multiple price pattern found'
+        });
       }
     }
     
     // Pattern 3: Standalone numbers that could be prices
     if (!foundPriceOnLine && hasThaiText(line)) {
+      patternsAttempted.push('standalone-numbers-with-thai');
       const standaloneNumberMatches = Array.from(line.matchAll(thaiPatterns.standaloneNumbers));
       const validPriceNumbers = standaloneNumberMatches.filter(match => {
         const num = parseInt(match[1]);
@@ -267,6 +332,12 @@ function parseTextToDishes(text: string): SmartDish[] {
         const price = validPriceNumbers[0][1];
         console.log(`💰 Found potential price number on line ${index}: "${line}" -> ${price} (assumed บาท)`);
         priceLines.push({ index, price, line });
+        
+        patternResults.push({
+          pattern: 'standalone-numbers-with-thai',
+          matched: true,
+          extractedData: { price, allNumbers: validPriceNumbers.map(m => m[1]) }
+        });
         
         // Check for dish name on same line
         const dishName = line.replace(new RegExp(`\\b${price}\\b`), '').trim();
@@ -279,15 +350,71 @@ function parseTextToDishes(text: string): SmartDish[] {
             confidence: 0.80, // Lower confidence for standalone numbers
             category: categorizeByName(cleanName)
           });
+          logDishResult({
+            name: cleanName,
+            price: `${price} บาท`,
+            confidence: 0.80
+          }, line, ['standalone-number-price']);
         }
+      } else {
+        patternResults.push({
+          pattern: 'standalone-numbers-with-thai',
+          matched: false,
+          failureReason: `Found ${standaloneNumberMatches.length} numbers, none in valid price range`
+        });
       }
     }
-    // Check if line looks like a dish name
-    else if (hasThaiText(line) && line.length > 3 && line.length < 100) {
+
+    // Determine final line classification and log pattern matching details
+    const isDishLine = foundPriceOnLine || (hasThaiText(line) && line.length > 3 && line.length < 100);
+    let classification: 'dish' | 'header' | 'price-only' | 'description' | 'other' = 'other';
+    let classificationReason = 'Default classification';
+
+    if (foundPriceOnLine) {
+      classification = 'dish';
+      classificationReason = 'Line contains price and potentially dish name';
+    } else if (hasThaiText(line) && line.length > 3 && line.length < 100) {
       const cleanName = cleanDishName(line);
       if (cleanName && isLikelyDishName(cleanName)) {
+        classification = 'dish';
+        classificationReason = 'Line contains likely dish name in Thai';
         console.log(`🍽️ Found potential dish name on line ${index}: "${cleanName}"`);
         dishNameCandidates.push({ index, name: cleanName, line });
+      } else {
+        classification = 'description';
+        classificationReason = 'Thai text but not recognized as dish name';
+        logRejectedLine(line, 'Thai text but failed dish name validation');
+      }
+    } else if (!hasThaiText(line) && /\d/.test(line)) {
+      classification = 'price-only';
+      classificationReason = 'Contains numbers but no Thai text';
+    }
+
+    // Log all pattern matching attempts for this line
+    logPatternMatchingDetails(
+      line,
+      isDishLine,
+      patternsAttempted,
+      patternResults,
+      classification,
+      classificationReason
+    );
+
+    // Log price extraction failures if prices were found but not properly extracted
+    if (!foundPriceOnLine && hasThaiText(line)) {
+      const foundPrices = line.match(/\d{2,4}/g) || [];
+      const validFoundPrices = foundPrices.filter(p => {
+        const num = parseInt(p);
+        return num >= 20 && num <= 2000;
+      });
+      
+      if (validFoundPrices.length > 0) {
+        logPriceExtractionFailure(
+          line,
+          validFoundPrices,
+          undefined,
+          'Found potential prices but no extraction pattern matched'
+        );
       }
     }
   });

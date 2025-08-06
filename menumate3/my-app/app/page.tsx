@@ -26,10 +26,7 @@ import {
   analyzeImageQuality,
 } from "@/utils/imagePreprocessor";
 import { TranslationCache } from "@/utils/translationCache";
-import {
-  detectLanguage,
-  getLanguageName,
-} from "@/utils/languages";
+import { detectLanguage, getLanguageName } from "@/utils/languages";
 import { QRCodeSection } from "@/components/QRCodeSection";
 import { CartButton } from "@/components/CartButton";
 import { DishCard } from "@/components/dish-card";
@@ -47,7 +44,6 @@ type Screen =
   | "dish-detail"
   | "filters"
   | "share";
-
 
 type ParsedDish = {
   id: string;
@@ -71,63 +67,73 @@ type ParsedDish = {
 };
 
 // Client-side image compression (only works in browser)
-function compressImage(file: File, quality: number = 0.8, maxWidth: number = 1920, maxHeight: number = 1080): Promise<File> {
+function compressImage(
+  file: File,
+  quality: number = 0.8,
+  maxWidth: number = 1920,
+  maxHeight: number = 1080
+): Promise<File> {
   return new Promise((resolve, reject) => {
     // Check if we're in a browser environment
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
-      reject(new Error('Compression only available in browser'));
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      reject(new Error("Compression only available in browser"));
       return;
     }
-    
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
     const img = new window.Image(); // Use window.Image for browser compatibility
-    
+
     if (!ctx) {
-      reject(new Error('Canvas context not available'));
+      reject(new Error("Canvas context not available"));
       return;
     }
-    
+
     img.onload = () => {
       // Calculate new dimensions
       let { width, height } = img;
-      
+
       if (width > maxWidth || height > maxHeight) {
         const ratio = Math.min(maxWidth / width, maxHeight / height);
         width = Math.floor(width * ratio);
         height = Math.floor(height * ratio);
       }
-      
+
       canvas.width = width;
       canvas.height = height;
-      
+
       // Draw and compress
       ctx.drawImage(img, 0, 0, width, height);
-      
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Failed to compress image'));
-          return;
-        }
-        
-        // Create a new File object with the compressed data
-        const compressedFile = new File([blob], file.name, {
-          type: 'image/jpeg',
-          lastModified: Date.now()
-        });
-        
-        resolve(compressedFile);
-      }, 'image/jpeg', quality);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to compress image"));
+            return;
+          }
+
+          // Create a new File object with the compressed data
+          const compressedFile = new File([blob], file.name, {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+
+          resolve(compressedFile);
+        },
+        "image/jpeg",
+        quality
+      );
     };
-    
-    img.onerror = () => reject(new Error('Failed to load image for compression'));
+
+    img.onerror = () =>
+      reject(new Error("Failed to load image for compression"));
     img.src = URL.createObjectURL(file);
   });
 }
 
 export default function MenuTranslatorDesign() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
-  
+
   const [selectedDish, setSelectedDish] = useState<ParsedDish | null>(null);
   const [menuImage, setMenuImage] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,7 +148,6 @@ export default function MenuTranslatorDesign() {
   const [parsedDishes, setParsedDishes] = useState<ParsedDish[]>([]);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [targetLanguage, setTargetLanguage] = useState<string>("en");
-  
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -155,113 +160,132 @@ export default function MenuTranslatorDesign() {
     },
     maxSpiceLevel: 4,
     priceRange: { min: 0, max: 200 },
-    sortBy: 'recommended' as 'recommended' | 'rating' | 'price' | 'time',
+    sortBy: "recommended" as "recommended" | "rating" | "price" | "time",
   });
-  
+
   // Filtered dishes state
   const [filteredDishes, setFilteredDishes] = useState<ParsedDish[]>([]);
-
 
   // Enhanced function to extract price number from price string with multiple currency support
   const extractPriceNumber = useCallback((priceString: string): number => {
     if (!priceString || priceString === "Price not detected") return 0;
-    
+
     // Enhanced regex to handle various price formats including currencies and Thai baht
-    const priceMatch = priceString.match(/(?:[฿$€£¥₹₽]?\s?)?(\d{1,5}(?:[.,]\d{1,2})?)\s?(?:บาท|baht|dollars?|euros?|pounds?|yen|rupees?|฿|$|€|£|¥|₹|₽)?/i);
-    
+    const priceMatch = priceString.match(
+      /(?:[฿$€£¥₹₽]?\s?)?(\d{1,5}(?:[.,]\d{1,2})?)\s?(?:บาท|baht|dollars?|euros?|pounds?|yen|rupees?|฿|$|€|£|¥|₹|₽)?/i
+    );
+
     if (priceMatch) {
-      let price = parseFloat(priceMatch[1].replace(',', '.'));
-      
+      let price = parseFloat(priceMatch[1].replace(",", "."));
+
       // Convert common currencies to USD equivalent for comparison
       // These are rough conversions for filter comparison purposes
-      if (priceString.includes('฿') || priceString.includes('บาท') || priceString.includes('baht')) {
+      if (
+        priceString.includes("฿") ||
+        priceString.includes("บาท") ||
+        priceString.includes("baht")
+      ) {
         price = price * 0.029; // THB to USD (approximate)
-      } else if (priceString.includes('¥')) {
+      } else if (priceString.includes("¥")) {
         price = price * 0.007; // JPY to USD (approximate)
-      } else if (priceString.includes('€')) {
+      } else if (priceString.includes("€")) {
         price = price * 1.1; // EUR to USD (approximate)
-      } else if (priceString.includes('£')) {
+      } else if (priceString.includes("£")) {
         price = price * 1.27; // GBP to USD (approximate)
       }
       // Default assumes USD or treats as USD equivalent
-      
+
       return price;
     }
-    
+
     return 0;
   }, []);
 
   // Function to filter and sort dishes based on current filters
-  const applyFilters = useCallback((dishes: ParsedDish[]): ParsedDish[] => {
+  const applyFilters = useCallback(
+    (dishes: ParsedDish[]): ParsedDish[] => {
+      const filteredDishes = dishes.filter((dish) => {
+        // Dietary filters
+        if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
+        if (filters.dietary.vegan && !dish.isVegan) return false;
+        if (filters.dietary.glutenFree && !dish.isGlutenFree) return false;
+        if (filters.dietary.dairyFree && !dish.isDairyFree) return false;
+        if (filters.dietary.nutFree && !dish.isNutFree) return false;
 
-    const filteredDishes = dishes.filter((dish) => {
+        // Spice level filter
+        if (dish.spiceLevel > filters.maxSpiceLevel) return false;
 
-      // Dietary filters
-      if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
-      if (filters.dietary.vegan && !dish.isVegan) return false;
-      if (filters.dietary.glutenFree && !dish.isGlutenFree) return false;
-      if (filters.dietary.dairyFree && !dish.isDairyFree) return false;
-      if (filters.dietary.nutFree && !dish.isNutFree) return false;
+        // Price range filter
+        const price = extractPriceNumber(dish.originalPrice);
+        if (
+          price > 0 &&
+          (price < filters.priceRange.min || price > filters.priceRange.max)
+        )
+          return false;
 
-      // Spice level filter
-      if (dish.spiceLevel > filters.maxSpiceLevel) return false;
+        return true;
+      });
 
-      // Price range filter
-      const price = extractPriceNumber(dish.originalPrice);
-      if (price > 0 && (price < filters.priceRange.min || price > filters.priceRange.max)) return false;
+      // Sort the filtered dishes with enhanced sorting logic
+      return filteredDishes.sort((a, b) => {
+        switch (filters.sortBy) {
+          case "rating":
+            // Sort by rating, then by name for tie-breaking
+            const ratingDiff = (b.rating || 4.0) - (a.rating || 4.0);
+            return ratingDiff !== 0
+              ? ratingDiff
+              : a.originalName.localeCompare(b.originalName);
 
-      return true;
-    });
+          case "price":
+            // Sort by price, handling "Price not detected" items by putting them last
+            const priceA = extractPriceNumber(a.originalPrice);
+            const priceB = extractPriceNumber(b.originalPrice);
+            if (priceA === 0 && priceB === 0)
+              return a.originalName.localeCompare(b.originalName);
+            if (priceA === 0) return 1; // Move "Price not detected" to end
+            if (priceB === 0) return -1; // Move "Price not detected" to end
+            return priceA - priceB;
 
-    // Sort the filtered dishes with enhanced sorting logic
-    return filteredDishes.sort((a, b) => {
-      switch (filters.sortBy) {
-        case 'rating':
-          // Sort by rating, then by name for tie-breaking
-          const ratingDiff = (b.rating || 4.0) - (a.rating || 4.0);
-          return ratingDiff !== 0 ? ratingDiff : a.originalName.localeCompare(b.originalName);
-        
-        case 'price':
-          // Sort by price, handling "Price not detected" items by putting them last
-          const priceA = extractPriceNumber(a.originalPrice);
-          const priceB = extractPriceNumber(b.originalPrice);
-          if (priceA === 0 && priceB === 0) return a.originalName.localeCompare(b.originalName);
-          if (priceA === 0) return 1; // Move "Price not detected" to end
-          if (priceB === 0) return -1; // Move "Price not detected" to end
-          return priceA - priceB;
-        
-        case 'time':
-          // Sort by preparation time, then by rating
-          const aTime = parseInt(a.time?.match(/\d+/)?.[0] || '15');
-          const bTime = parseInt(b.time?.match(/\d+/)?.[0] || '15');
-          const timeDiff = aTime - bTime;
-          return timeDiff !== 0 ? timeDiff : (b.rating || 4.0) - (a.rating || 4.0);
-        
-        default: // recommended - intelligent sorting based on multiple factors
-          // Sort by a combination of rating, spice level preference, and alphabetical
-          let score = 0;
-          
-          // Factor in rating (higher is better)
-          score += (b.rating || 4.0) - (a.rating || 4.0);
-          
-          // Factor in vegetarian preference if filter is active
-          if (filters.dietary.vegetarian && a.isVegetarian !== b.isVegetarian) {
-            score += a.isVegetarian ? 1 : -1;
-          }
-          
-          // Factor in spice level preference (closer to max preference is better)
-          const spiceDiffA = Math.abs(a.spiceLevel - filters.maxSpiceLevel);
-          const spiceDiffB = Math.abs(b.spiceLevel - filters.maxSpiceLevel);
-          score += (spiceDiffA - spiceDiffB) * 0.1;
-          
-          // Fall back to alphabetical for tie-breaking
-          return score !== 0 ? score : a.originalName.localeCompare(b.originalName);
-      }
-    });
+          case "time":
+            // Sort by preparation time, then by rating
+            const aTime = parseInt(a.time?.match(/\d+/)?.[0] || "15");
+            const bTime = parseInt(b.time?.match(/\d+/)?.[0] || "15");
+            const timeDiff = aTime - bTime;
+            return timeDiff !== 0
+              ? timeDiff
+              : (b.rating || 4.0) - (a.rating || 4.0);
 
+          default: // recommended - intelligent sorting based on multiple factors
+            // Sort by a combination of rating, spice level preference, and alphabetical
+            let score = 0;
 
-    return filteredDishes;
-  }, [filters, extractPriceNumber]);
+            // Factor in rating (higher is better)
+            score += (b.rating || 4.0) - (a.rating || 4.0);
+
+            // Factor in vegetarian preference if filter is active
+            if (
+              filters.dietary.vegetarian &&
+              a.isVegetarian !== b.isVegetarian
+            ) {
+              score += a.isVegetarian ? 1 : -1;
+            }
+
+            // Factor in spice level preference (closer to max preference is better)
+            const spiceDiffA = Math.abs(a.spiceLevel - filters.maxSpiceLevel);
+            const spiceDiffB = Math.abs(b.spiceLevel - filters.maxSpiceLevel);
+            score += (spiceDiffA - spiceDiffB) * 0.1;
+
+            // Fall back to alphabetical for tie-breaking
+            return score !== 0
+              ? score
+              : a.originalName.localeCompare(b.originalName);
+        }
+      });
+
+      return filteredDishes;
+    },
+    [filters, extractPriceNumber]
+  );
 
   // Update filtered dishes when parsedDishes or filters change
   useEffect(() => {
@@ -277,18 +301,18 @@ export default function MenuTranslatorDesign() {
   const trySmartParsing = async (imageFile: File, useGPT4Fallback = false) => {
     try {
       if (useGPT4Fallback) {
-        console.log('🔄 Trying GPT-4o fallback...');
+        console.log("🔄 Trying GPT-4o fallback...");
         const result = await parseMenuWithGPT4(imageFile);
-        console.log('✅ GPT-4o parsing result:', result);
+        console.log("✅ GPT-4o parsing result:", result);
         return result;
       } else {
-        console.log('🚀 Using Google Cloud Vision + intelligent parsing...');
+        console.log("🚀 Using Google Cloud Vision + intelligent parsing...");
         const result = await parseMenuWithAI(imageFile);
-        console.log('✅ Google Vision parsing result:', result);
+        console.log("✅ Google Vision parsing result:", result);
         return result;
       }
     } catch (error) {
-      console.error('❌ Smart parsing failed:', error);
+      console.error("❌ Smart parsing failed:", error);
       return null;
     }
   };
@@ -302,45 +326,57 @@ export default function MenuTranslatorDesign() {
 
       const performOcr = async () => {
         try {
-          
           // Try Google Cloud Vision + intelligent parsing first (fast & accurate)
           let smartResult = await trySmartParsing(menuImage, false);
-          
+
           // If Google Vision fails or returns few dishes, try GPT-4o fallback
-          if (!smartResult || (smartResult.dishes && smartResult.dishes.length < 8)) {
-            console.log('🔄 Google Vision result insufficient, trying GPT-4o fallback...');
+          if (
+            !smartResult ||
+            (smartResult.dishes && smartResult.dishes.length < 8)
+          ) {
+            console.log(
+              "🔄 Google Vision result insufficient, trying GPT-4o fallback..."
+            );
             smartResult = await trySmartParsing(menuImage, true);
           }
-          
+
           if (smartResult) {
-            
             // Convert smart result to ParsedDish format
-            const dishes = smartResult.dishes.map((dish: any, index: number) => ({
-              id: `smart-dish-${index}`,
-              originalName: dish.name,
-              originalPrice: dish.price || "Price not detected",
-              translatedName: undefined,
-              translatedPrice: undefined,
-              description: `${dish.category ? `${dish.category.charAt(0).toUpperCase() + dish.category.slice(1)} - ` : ''}${dish.name}`,
-              tags: [dish.category || 'dish'].filter(Boolean),
-              isVegetarian: dish.isVegetarian || false,
-              isVegan: false,
-              isGlutenFree: false,
-              isDairyFree: false,
-              isNutFree: false,
-              spiceLevel: dish.spiceLevel || 0,
-              rating: 4.5,
-              time: "15 min",
-              calories: 300,
-              protein: "15g",
-              ingredients: []
-            }));
+            const dishes = smartResult.dishes.map(
+              (dish: any, index: number) => ({
+                id: `smart-dish-${index}`,
+                originalName: dish.name,
+                originalPrice: dish.price || "Price not detected",
+                translatedName: undefined,
+                translatedPrice: undefined,
+                description: `${
+                  dish.category
+                    ? `${
+                        dish.category.charAt(0).toUpperCase() +
+                        dish.category.slice(1)
+                      } - `
+                    : ""
+                }${dish.name}`,
+                tags: [dish.category || "dish"].filter(Boolean),
+                isVegetarian: dish.isVegetarian || false,
+                isVegan: false,
+                isGlutenFree: false,
+                isDairyFree: false,
+                isNutFree: false,
+                spiceLevel: dish.spiceLevel || 0,
+                rating: 4.5,
+                time: "15 min",
+                calories: 300,
+                protein: "15g",
+                ingredients: [],
+              })
+            );
 
             // Set OCR text for translation system compatibility
-            const combinedText = smartResult.dishes.map((dish: any) => 
-              `${dish.name} ${dish.price || ''}`
-            ).join('\n');
-            
+            const combinedText = smartResult.dishes
+              .map((dish: any) => `${dish.name} ${dish.price || ""}`)
+              .join("\n");
+
             setParsedDishes(dishes);
             setOcrText(combinedText);
             setDetectedLanguage(smartResult.language);
@@ -348,7 +384,6 @@ export default function MenuTranslatorDesign() {
             return;
           }
 
-          
           // Fallback to traditional OCR + regex parsing
           const formData = new FormData();
           formData.append("image", menuImage);
@@ -458,14 +493,13 @@ export default function MenuTranslatorDesign() {
     }
   }, [currentScreen, ocrText, targetLanguage]);
 
-
   // Update language detection when OCR text changes
   useEffect(() => {
     if (ocrText) {
       // Detect language from OCR text for translation purposes
       const detected = detectLanguage(ocrText);
       setDetectedLanguage(detected);
-      
+
       // Set target language to English by default
       setTargetLanguage("en");
     }
@@ -477,15 +511,17 @@ export default function MenuTranslatorDesign() {
       const translatedLines = translatedText
         .split("\n")
         .filter((line) => line.trim());
-      
+
       // Use functional update to avoid dependency on parsedDishes
-      setParsedDishes(currentDishes => {
+      setParsedDishes((currentDishes) => {
         if (currentDishes.length === 0) return currentDishes;
-        
+
         return currentDishes.map((dish, index) => {
           const translatedLine = translatedLines[index];
           if (translatedLine) {
-            const priceMatch = translatedLine.match(/[¥$€£]\s*(\d+(?:\.\d{2})?)/);
+            const priceMatch = translatedLine.match(
+              /[¥$€£]\s*(\d+(?:\.\d{2})?)/
+            );
             const translatedName = priceMatch
               ? translatedLine.replace(priceMatch[0], "").trim()
               : translatedLine.trim();
@@ -589,15 +625,21 @@ export default function MenuTranslatorDesign() {
 
       // Check file size and compress if too large
       let finalFile = file;
-      if (file.size > 8 * 1024 * 1024) { // 8MB threshold
+      if (file.size > 8 * 1024 * 1024) {
+        // 8MB threshold
         setCameraError("Compressing large image...");
         try {
           finalFile = await compressImage(file, 0.8, 1920, 1080);
-          console.log(`Compressed image from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${(finalFile.size / 1024 / 1024).toFixed(2)}MB`);
+          console.log(
+            `Compressed image from ${(file.size / 1024 / 1024).toFixed(
+              2
+            )}MB to ${(finalFile.size / 1024 / 1024).toFixed(2)}MB`
+          );
           setCameraError(null);
         } catch (error) {
           console.error("Compression failed:", error);
-          if (file.size > 15 * 1024 * 1024) { // Hard limit
+          if (file.size > 15 * 1024 * 1024) {
+            // Hard limit
             setCameraError("Image too large. Please select a smaller image.");
             return;
           }
@@ -852,7 +894,11 @@ export default function MenuTranslatorDesign() {
                   Menu Discovered
                 </h1>
                 <div className="flex items-center gap-3 text-sm text-gray-600">
-                  <span>{filteredDishes.length} dishes found {filteredDishes.length !== parsedDishes.length && `(${parsedDishes.length} total)`}</span>
+                  <span>
+                    {filteredDishes.length} dishes found{" "}
+                    {filteredDishes.length !== parsedDishes.length &&
+                      `(${parsedDishes.length} total)`}
+                  </span>
                   {detectedLanguage && (
                     <Badge variant="outline" className="text-xs">
                       <Globe className="w-3 h-3 mr-1" />
@@ -900,64 +946,70 @@ export default function MenuTranslatorDesign() {
               <Badge
                 variant={filters.dietary.vegetarian ? "secondary" : "outline"}
                 className={`whitespace-nowrap cursor-pointer ${
-                  filters.dietary.vegetarian 
-                    ? "bg-orange-100 text-orange-700 border-orange-200" 
+                  filters.dietary.vegetarian
+                    ? "bg-orange-100 text-orange-700 border-orange-200"
                     : "hover:bg-gray-100"
                 }`}
-                onClick={() => 
-                  setFilters(prev => ({
+                onClick={() =>
+                  setFilters((prev) => ({
                     ...prev,
-                    dietary: { ...prev.dietary, vegetarian: !prev.dietary.vegetarian }
+                    dietary: {
+                      ...prev.dietary,
+                      vegetarian: !prev.dietary.vegetarian,
+                    },
                   }))
                 }
               >
                 <Leaf className="w-3 h-3 mr-1" />
                 Vegetarian
               </Badge>
-              <Badge 
+              <Badge
                 variant={filters.maxSpiceLevel < 4 ? "secondary" : "outline"}
                 className={`whitespace-nowrap cursor-pointer ${
                   filters.maxSpiceLevel < 4
                     ? "bg-red-100 text-red-700 border-red-200"
                     : "hover:bg-gray-100"
                 }`}
-                onClick={() => 
-                  setFilters(prev => ({
+                onClick={() =>
+                  setFilters((prev) => ({
                     ...prev,
-                    maxSpiceLevel: prev.maxSpiceLevel < 4 ? 4 : 2
+                    maxSpiceLevel: prev.maxSpiceLevel < 4 ? 4 : 2,
                   }))
                 }
               >
                 <Flame className="w-3 h-3 mr-1" />
                 Spicy
               </Badge>
-              <Badge 
+              <Badge
                 variant={filters.priceRange.max <= 20 ? "secondary" : "outline"}
                 className={`whitespace-nowrap cursor-pointer ${
                   filters.priceRange.max <= 20
                     ? "bg-green-100 text-green-700 border-green-200"
                     : "hover:bg-gray-100"
                 }`}
-                onClick={() => 
-                  setFilters(prev => ({
+                onClick={() =>
+                  setFilters((prev) => ({
                     ...prev,
-                    priceRange: { ...prev.priceRange, max: prev.priceRange.max <= 20 ? 50 : 20 }
+                    priceRange: {
+                      ...prev.priceRange,
+                      max: prev.priceRange.max <= 20 ? 50 : 20,
+                    },
                   }))
                 }
               >
                 Under $20
               </Badge>
-              <Badge 
-                variant={filters.sortBy === 'time' ? "secondary" : "outline"}
+              <Badge
+                variant={filters.sortBy === "time" ? "secondary" : "outline"}
                 className={`whitespace-nowrap cursor-pointer ${
-                  filters.sortBy === 'time'
+                  filters.sortBy === "time"
                     ? "bg-blue-100 text-blue-700 border-blue-200"
                     : "hover:bg-gray-100"
                 }`}
-                onClick={() => 
-                  setFilters(prev => ({
+                onClick={() =>
+                  setFilters((prev) => ({
                     ...prev,
-                    sortBy: prev.sortBy === 'time' ? 'recommended' : 'time'
+                    sortBy: prev.sortBy === "time" ? "recommended" : "time",
                   }))
                 }
               >
@@ -966,7 +1018,6 @@ export default function MenuTranslatorDesign() {
             </div>
           </div>
         </div>
-
 
         {/* OCR Results Section */}
         {ocrText && (
@@ -1058,7 +1109,8 @@ export default function MenuTranslatorDesign() {
                     No dishes match your current filters.
                   </p>
                   <p className="text-sm text-gray-400 mb-4">
-                    Found {parsedDishes.length} dishes total, but none match your preferences.
+                    Found {parsedDishes.length} dishes total, but none match
+                    your preferences.
                   </p>
                   <Button
                     variant="outline"
@@ -1074,8 +1126,8 @@ export default function MenuTranslatorDesign() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredDishes.map((dish) => (
                 <div key={dish.id} className="relative">
-                  <DishCard 
-                    dish={dish} 
+                  <DishCard
+                    dish={dish}
                     onClick={() => {
                       setSelectedDish(dish);
                       setCurrentScreen("dish-detail");
@@ -1097,7 +1149,7 @@ export default function MenuTranslatorDesign() {
             <Camera className="w-6 h-6" />
           </Button>
         </div>
-        
+
         {/* Debug Panel */}
         <DebugPanel />
       </div>
@@ -1395,7 +1447,11 @@ export default function MenuTranslatorDesign() {
               {[
                 { label: "Vegetarian", icon: "🥬", key: "vegetarian" as const },
                 { label: "Vegan", icon: "🌱", key: "vegan" as const },
-                { label: "Gluten-Free", icon: "🌾", key: "glutenFree" as const },
+                {
+                  label: "Gluten-Free",
+                  icon: "🌾",
+                  key: "glutenFree" as const,
+                },
                 { label: "Dairy-Free", icon: "🥛", key: "dairyFree" as const },
                 { label: "Nut-Free", icon: "🥜", key: "nutFree" as const },
               ].map((item) => (
@@ -1412,23 +1468,27 @@ export default function MenuTranslatorDesign() {
                   <button
                     onClick={() => {
                       const newValue = !filters.dietary[item.key];
-                      setFilters(prev => {
+                      setFilters((prev) => {
                         const newFilters = {
                           ...prev,
-                          dietary: { ...prev.dietary, [item.key]: newValue }
+                          dietary: { ...prev.dietary, [item.key]: newValue },
                         };
                         return newFilters;
                       });
                     }}
                     className={`w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
-                      filters.dietary[item.key] 
-                        ? 'bg-orange-500' 
-                        : 'bg-gray-300'
+                      filters.dietary[item.key]
+                        ? "bg-orange-500"
+                        : "bg-gray-300"
                     }`}
                   >
-                    <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
-                      filters.dietary[item.key] ? 'translate-x-6' : 'translate-x-0.5'
-                    }`} />
+                    <div
+                      className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
+                        filters.dietary[item.key]
+                          ? "translate-x-6"
+                          : "translate-x-0.5"
+                      }`}
+                    />
                   </button>
                 </div>
               ))}
@@ -1453,10 +1513,10 @@ export default function MenuTranslatorDesign() {
                 min="0"
                 max="4"
                 value={filters.maxSpiceLevel}
-                onChange={(e) => 
-                  setFilters(prev => ({
+                onChange={(e) =>
+                  setFilters((prev) => ({
                     ...prev,
-                    maxSpiceLevel: parseInt(e.target.value)
+                    maxSpiceLevel: parseInt(e.target.value),
                   }))
                 }
                 className="w-full h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer slider"
@@ -1475,18 +1535,25 @@ export default function MenuTranslatorDesign() {
             </h3>
             <div className="bg-gray-50 rounded-2xl p-6">
               <div className="flex justify-between items-center mb-4">
-                <span className="font-semibold text-gray-900">${filters.priceRange.min}</span>
-                <span className="font-semibold text-gray-900">${filters.priceRange.max}+</span>
+                <span className="font-semibold text-gray-900">
+                  ${filters.priceRange.min}
+                </span>
+                <span className="font-semibold text-gray-900">
+                  ${filters.priceRange.max}+
+                </span>
               </div>
               <input
                 type="range"
                 min="5"
                 max="100"
                 value={filters.priceRange.max}
-                onChange={(e) => 
-                  setFilters(prev => ({
+                onChange={(e) =>
+                  setFilters((prev) => ({
                     ...prev,
-                    priceRange: { ...prev.priceRange, max: parseInt(e.target.value) }
+                    priceRange: {
+                      ...prev.priceRange,
+                      max: parseInt(e.target.value),
+                    },
                   }))
                 }
                 className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
@@ -1501,17 +1568,33 @@ export default function MenuTranslatorDesign() {
             </h3>
             <div className="space-y-2">
               {[
-                { label: "Recommended for you", icon: "⭐", value: "recommended" as const },
-                { label: "Highest rated", icon: "👍", value: "rating" as const },
-                { label: "Price: Low to high", icon: "💰", value: "price" as const },
-                { label: "Preparation time", icon: "⏱️", value: "time" as const },
+                {
+                  label: "Recommended for you",
+                  icon: "⭐",
+                  value: "recommended" as const,
+                },
+                {
+                  label: "Highest rated",
+                  icon: "👍",
+                  value: "rating" as const,
+                },
+                {
+                  label: "Price: Low to high",
+                  icon: "💰",
+                  value: "price" as const,
+                },
+                {
+                  label: "Preparation time",
+                  icon: "⏱️",
+                  value: "time" as const,
+                },
               ].map((item) => (
                 <div
                   key={item.label}
-                  onClick={() => 
-                    setFilters(prev => ({
+                  onClick={() =>
+                    setFilters((prev) => ({
                       ...prev,
-                      sortBy: item.value
+                      sortBy: item.value,
                     }))
                   }
                   className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-colors ${
@@ -1523,7 +1606,9 @@ export default function MenuTranslatorDesign() {
                   <span className="text-xl">{item.icon}</span>
                   <span
                     className={`font-medium ${
-                      filters.sortBy === item.value ? "text-orange-700" : "text-gray-900"
+                      filters.sortBy === item.value
+                        ? "text-orange-700"
+                        : "text-gray-900"
                     }`}
                   >
                     {item.label}
@@ -1550,7 +1635,7 @@ export default function MenuTranslatorDesign() {
                 },
                 maxSpiceLevel: 4,
                 priceRange: { min: 5, max: 50 },
-                sortBy: 'recommended',
+                sortBy: "recommended",
               });
             }}
             className="w-full h-12 rounded-2xl border-gray-300 text-gray-600 bg-transparent"

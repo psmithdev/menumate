@@ -186,8 +186,8 @@ export function parseTextToDishes(text: string): SmartDish[] {
     multiplePrices: /(\d{2,4})\s*(?:[\/\s]|พิเศษ)\s*(\d{2,4})(?:\s*[\/\s]\s*(\d{2,4}))?\s*(?:บาท|฿|พิเศษ)?/gi
   };
   
-  // Set expected dishes based on manual count from image - approximately 16 dishes
-  setExpectedDishes(16);
+  // Set expected dishes based on manual count from image - approximately 15 dishes
+  setExpectedDishes(15);
 
   // First pass: Find all lines with prices and potential dish names
   const priceLines: { index: number; price: string; line: string }[] = [];
@@ -372,7 +372,55 @@ export function parseTextToDishes(text: string): SmartDish[] {
       }
     }
     
-    // Pattern 4: Standalone numbers that could be prices
+    // Pattern 4: Columnar menu format - dish name with prices on same line (e.g., "ก๋วยเตี๋ยวหมูต้มยำนำ้ 40 50 60")
+    if (!foundPriceOnLine && hasThaiText(line)) {
+      patternsAttempted.push('columnar-dish-with-prices');
+      // Look for pattern: Thai text followed by 2-3 numbers (prices for different sizes)
+      const columnarMatch = line.match(/([ก-๙\s\/\-\(\)]+)\s+(\d{2,3})\s+(\d{2,3})\s*(\d{2,3})?/);
+      if (columnarMatch) {
+        const dishName = columnarMatch[1].trim();
+        const price1 = columnarMatch[2];
+        const price2 = columnarMatch[3];
+        const price3 = columnarMatch[4];
+        
+        const cleanName = cleanDishName(dishName);
+        if (cleanName && cleanName.length > 3 && isLikelyDishName(cleanName)) {
+          // Use the middle price as default, or show range
+          const priceDisplay = price3 ? `${price1}/${price2}/${price3}` : `${price1}/${price2}`;
+          console.log(`🍽️ Found columnar dish: "${cleanName}" -> ${priceDisplay} บาท`);
+          
+          dishes.push({
+            name: cleanName,
+            price: `${priceDisplay} บาท`,
+            confidence: 0.90,
+            category: categorizeByName(cleanName)
+          });
+          
+          logDishResult({
+            name: cleanName,
+            price: `${priceDisplay} บาท`,
+            confidence: 0.90
+          }, line, ['columnar-format']);
+          
+          foundPriceOnLine = true;
+          patternResults.push({
+            pattern: 'columnar-dish-with-prices',
+            matched: true,
+            extractedData: { dishName: cleanName, prices: [price1, price2, price3].filter(Boolean) }
+          });
+        }
+      }
+      
+      if (!foundPriceOnLine) {
+        patternResults.push({
+          pattern: 'columnar-dish-with-prices',
+          matched: false,
+          failureReason: 'No columnar dish+price pattern found'
+        });
+      }
+    }
+
+    // Pattern 5: Standalone numbers that could be prices
     if (!foundPriceOnLine && hasThaiText(line)) {
       patternsAttempted.push('standalone-numbers-with-thai');
       const standaloneNumberMatches = Array.from(line.matchAll(thaiPatterns.standaloneNumbers));

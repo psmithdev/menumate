@@ -150,6 +150,9 @@ const PRICE_PATTERNS = {
   // Pattern 7: Multiple prices separated by slashes (e.g., "น้ำปลาหวาน 80/100/120")
   slashSeparated: /(.+?)\s+(\d{1,5}(?:[.,]\d{1,2})?(?:\/\d{1,5}(?:[.,]\d{1,2})?)+)\s*([฿$€£¥]|บาท|baht|THB|USD|JPY|EUR|GBP)?$/i,
   
+  // Pattern 7b: Multiple prices separated by spaces (e.g., "ก๋วยเตี๋ยวหมู 40 50 60")
+  spaceSeparatedMultiple: /(.+?)\s+(\d{2,4})\s+(\d{2,4})\s+(\d{2,4})(?:\s+(\d{2,4}))?\s*([฿$€£¥]|บาท|baht|THB|USD|JPY|EUR|GBP)?$/i,
+  
   // Pattern 8: Numbers after Thai text with potential currency (more flexible)
   flexiblePrice: /([ก-๙\s]+?)\s*(\d{2,4})\s*([฿$€£¥]|บาท|baht)?\s*$/i,
   
@@ -297,6 +300,45 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
     
     const prices = parseMultipleSizes(dishName, pricesText, currency);
     if (prices.length > 0) {
+      return {
+        dishName,
+        prices: prices.map(p => ({ ...p, allSizes: prices.map(price => ({ size: price.size || '', price: price.price })) })),
+        isValid: true,
+        isDish: true
+      };
+    }
+  }
+  
+  // 2b. Space-separated multiple prices (e.g., "ก๋วยเตี๋ยวหมู 40 50 60")
+  console.log(`🔍 Testing space-separated multiple prices pattern...`);
+  const spaceSeparatedMatch = PRICE_PATTERNS.spaceSeparatedMultiple.exec(trimmedLine);
+  if (spaceSeparatedMatch) {
+    console.log(`✅ Space-separated multiple prices match found:`, spaceSeparatedMatch);
+    const dishName = spaceSeparatedMatch[1].trim();
+    const price1 = spaceSeparatedMatch[2];
+    const price2 = spaceSeparatedMatch[3];
+    const price3 = spaceSeparatedMatch[4];
+    const price4 = spaceSeparatedMatch[5]; // Optional 4th price
+    const currency = detectCurrency(trimmedLine, spaceSeparatedMatch[6]);
+    
+    const prices: ParsedPrice[] = [];
+    const sizeOrder = ['small', 'medium', 'large', 'extra'];
+    const priceValues = [price1, price2, price3, price4].filter(p => p);
+    
+    priceValues.forEach((price, index) => {
+      const size = sizeOrder[index] || `size${index + 1}`;
+      prices.push({
+        price: `${price} ${currency}`,
+        currency,
+        size,
+        isMultipleSize: true
+      });
+    });
+    
+    console.log(`💰 Extracted space-separated prices:`, prices);
+    
+    if (prices.length > 0) {
+      console.log(`✅ Returning space-separated multiple sizes result for "${dishName}"`);
       return {
         dishName,
         prices: prices.map(p => ({ ...p, allSizes: prices.map(price => ({ size: price.size || '', price: price.price })) })),

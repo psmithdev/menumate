@@ -29,12 +29,16 @@ export async function POST(request: NextRequest) {
   const arrayBuffer = await file.arrayBuffer();
   let base64Image = Buffer.from(arrayBuffer).toString("base64");
   
-  // Optimize image size for better performance (Google Vision recommends < 20MB)
+  // Check image size for Google Vision API (20MB limit)
   const imageSizeMB = base64Image.length * 0.75 / (1024 * 1024); // Approximate actual image size
-  console.log(`📷 Original image size: ~${imageSizeMB.toFixed(2)}MB`);
+  console.log(`📷 Image size: ~${imageSizeMB.toFixed(2)}MB`);
   
-  if (imageSizeMB > 10) {
-    console.log("⚠️ Large image detected, consider preprocessing for better performance");
+  if (imageSizeMB > 15) {
+    console.log("❌ Image too large for Google Vision API");
+    return NextResponse.json(
+      { error: "Image too large. Please use an image smaller than 15MB." },
+      { status: 413 }
+    );
   }
   
   console.log("Image converted to base64, length:", base64Image.length);

@@ -70,6 +70,61 @@ type ParsedDish = {
   ingredients?: string[];
 };
 
+// Client-side image compression (only works in browser)
+function compressImage(file: File, quality: number = 0.8, maxWidth: number = 1920, maxHeight: number = 1080): Promise<File> {
+  return new Promise((resolve, reject) => {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      reject(new Error('Compression only available in browser'));
+      return;
+    }
+    
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new window.Image(); // Use window.Image for browser compatibility
+    
+    if (!ctx) {
+      reject(new Error('Canvas context not available'));
+      return;
+    }
+    
+    img.onload = () => {
+      // Calculate new dimensions
+      let { width, height } = img;
+      
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Draw and compress
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Failed to compress image'));
+          return;
+        }
+        
+        // Create a new File object with the compressed data
+        const compressedFile = new File([blob], file.name, {
+          type: 'image/jpeg',
+          lastModified: Date.now()
+        });
+        
+        resolve(compressedFile);
+      }, 'image/jpeg', quality);
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function MenuTranslatorDesign() {
   const [currentScreen, setCurrentScreen] = useState<Screen>("welcome");
   
@@ -532,21 +587,33 @@ export default function MenuTranslatorDesign() {
         return;
       }
 
-      // Validate file size (e.g., max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setCameraError("Image must be less than 5MB.");
-        return;
+      // Check file size and compress if too large
+      let finalFile = file;
+      if (file.size > 8 * 1024 * 1024) { // 8MB threshold
+        setCameraError("Compressing large image...");
+        try {
+          finalFile = await compressImage(file, 0.8, 1920, 1080);
+          console.log(`Compressed image from ${(file.size / 1024 / 1024).toFixed(2)}MB to ${(finalFile.size / 1024 / 1024).toFixed(2)}MB`);
+          setCameraError(null);
+        } catch (error) {
+          console.error("Compression failed:", error);
+          if (file.size > 15 * 1024 * 1024) { // Hard limit
+            setCameraError("Image too large. Please select a smaller image.");
+            return;
+          }
+          finalFile = file; // Use original if compression fails but still under hard limit
+        }
       }
 
       setCameraError(null);
 
       // Analyze image quality and preprocess if needed
       try {
-        const quality = await analyzeImageQuality(file);
-        let processedFile = file;
+        const quality = await analyzeImageQuality(finalFile);
+        let processedFile = finalFile;
 
         if (quality.needsPreprocessing) {
-          processedFile = await preprocessImage(file, {
+          processedFile = await preprocessImage(finalFile, {
             contrast: quality.isLowContrast ? 1.3 : 1.1,
             brightness: quality.isDark ? 1.2 : 1.0,
             sharpen: quality.isBlurry,
@@ -559,8 +626,8 @@ export default function MenuTranslatorDesign() {
         setCurrentScreen("processing");
       } catch (error) {
         console.error("Image preprocessing failed:", error);
-        // Fallback to original file
-        setMenuImage(file);
+        // Fallback to compressed file
+        setMenuImage(finalFile);
         setCurrentScreen("processing");
       }
     };

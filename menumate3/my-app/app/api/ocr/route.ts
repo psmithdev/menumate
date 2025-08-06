@@ -151,7 +151,16 @@ export async function POST(request: NextRequest) {
       console.log(`🔄 Enhancing text extraction with individual annotations...`);
       
       // Group annotations by approximate line position and x coordinate
-      const annotationsWithPosition = response.textAnnotations.slice(1).map((annotation: any) => {
+      interface AnnotationPosition {
+        text: string;
+        y: number;
+        x: number;
+        width: number;
+        height: number;
+        confidence: number;
+      }
+      
+      const annotationsWithPosition: AnnotationPosition[] = response.textAnnotations.slice(1).map((annotation: any) => {
         const vertices = annotation.boundingPoly?.vertices || [];
         let avgY = 0, avgX = 0, width = 0, height = 0;
         if (vertices.length > 0) {
@@ -175,7 +184,7 @@ export async function POST(request: NextRequest) {
       });
       
       // Sort by Y position first (top to bottom), then by X position (left to right)
-      annotationsWithPosition.sort((a, b) => {
+      annotationsWithPosition.sort((a: AnnotationPosition, b: AnnotationPosition) => {
         const yDiff = a.y - b.y;
         if (Math.abs(yDiff) < 30) { // Same line if Y difference is small (increased tolerance)
           return a.x - b.x; // Sort by X within the same line
@@ -188,7 +197,7 @@ export async function POST(request: NextRequest) {
       let currentLine: Array<{text: string, confidence: number}> = [];
       let lastY = -1;
       
-      annotationsWithPosition.forEach(item => {
+      annotationsWithPosition.forEach((item: AnnotationPosition) => {
         if (lastY === -1 || Math.abs(item.y - lastY) < 30) {
           // Same line
           currentLine.push({text: item.text, confidence: item.confidence});
@@ -284,9 +293,9 @@ export async function POST(request: NextRequest) {
   console.log(`   🇹🇭 Thai words detected: ${thaiWords.length}`);
   
   // Line-by-line analysis for debugging
-  const lines = text.split('\n').filter(line => line.trim().length > 0);
+  const lines = text.split('\n').filter((line: string) => line.trim().length > 0);
   console.log(`📋 Line-by-line analysis (${lines.length} lines):`);
-  lines.slice(0, 10).forEach((line, i) => {
+  lines.slice(0, 10).forEach((line: string, i: number) => {
     const hasPrice = /\d+\s*(?:บาท|baht|฿)/.test(line) || /\b\d{2,4}\b/.test(line);
     const hasThai = /[ก-๙]/.test(line);
     const marker = hasPrice ? '💰' : hasThai ? '🍽️' : '📝';

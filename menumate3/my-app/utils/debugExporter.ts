@@ -468,15 +468,15 @@ ${debugData.ocrResults?.potentialPrices?.map(price => `- ${price}`).join('\\n') 
   private extractPriceMatches(text: string): { directMatches: string[], potentialPrices: string[] } {
     // Enhanced regex to handle Thai price formats including พิเศษ (special), กิโลละ (per kilo), etc.
     // Need to match the actual format: "number พิเศษ number" or "number บาท"
-    const directMatches = text.match(/\\d+\\s*(?:บาท|baht|฿)|\\d+\\s*พิเศษ\\s*\\d+/gi) || [];
+    const directMatches = text.match(/\d+\s*(?:บาท|baht|฿)|\d+\s*พิเศษ\s*\d+/gi) || [];
     
     // Better potential price detection that filters out phone numbers and other non-price numbers
-    const potentialPrices = text.match(/\\b\\d{2,4}\\b/g) || [];
+    const potentialPrices = text.match(/\b\d{2,4}\b/g) || [];
     const filteredPotentialPrices = potentialPrices.filter(price => {
       const num = parseInt(price);
       
       // Check if this number is part of a phone number pattern
-      const phoneNumberPattern = /\\d{3}-\\d{7}|\\d{10}/;
+      const phoneNumberPattern = /\d{3}-\d{7}|\d{10}/;
       const isInPhoneNumber = phoneNumberPattern.test(text) && text.includes(price);
       
       // Filter out phone number segments (like 093, 0969) and focus on reasonable price range

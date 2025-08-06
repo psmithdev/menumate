@@ -158,7 +158,7 @@ async function extractTextWithGoogleVision(imageFile: File): Promise<{ text: str
  * Parse extracted text into dishes using intelligent text analysis
  * Handles cases where dish names and prices are on separate lines
  */
-function parseTextToDishes(text: string): SmartDish[] {
+export function parseTextToDishes(text: string): SmartDish[] {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   const dishes: SmartDish[] = [];
   
@@ -426,16 +426,40 @@ function parseTextToDishes(text: string): SmartDish[] {
     }
 
     // Determine final line classification and log pattern matching details
-    const isDishLine = foundPriceOnLine || (hasThaiText(line) && line.length > 3 && line.length < 100);
     let classification: 'dish' | 'header' | 'price-only' | 'description' | 'other' = 'other';
     let classificationReason = 'Default classification';
 
-    if (foundPriceOnLine) {
-      classification = 'dish';
-      classificationReason = 'Line contains price and potentially dish name';
+    // Enhanced: More strict standalone price detection
+    const isStandalonePriceLine = /^\d+\s*พิเศษ\s*\d+$/.test(line.trim()) || 
+                                 /^[\d\s\/\-฿บาทพิเศษ,\.]+$/.test(line.trim()) ||
+                                 (/^\d{2,4}[\/\-,]\d{2,4}[\/\-,]?\d{0,4}\s*(?:บาท|฿)?$/.test(line.trim())) ||
+                                 (/^\d{2,4}$/.test(line.trim()) && line.length <= 4);
+
+    if (isStandalonePriceLine) {
+      classification = 'price-only';
+      classificationReason = 'Standalone price line without dish name';
+      console.log(`💰 Classified as price-only: "${line}"`);
+    } else if (foundPriceOnLine) {
+      // Remove all price patterns to check for remaining dish name
+      let dishName = line.replace(/\d+\s*พิเศษ\s*\d+/g, '')
+                         .replace(/\d+(?:[-\/,]\d+)*\s*(?:บาท|฿)/g, '')
+                         .replace(/\d{2,4}/g, '')
+                         .trim();
+      const cleanName = cleanDishName(dishName);
+      
+      if (cleanName && cleanName.length > 2 && isLikelyDishName(cleanName) && hasThaiText(cleanName)) {
+        classification = 'dish';
+        classificationReason = 'Line contains price and valid dish name';
+        console.log(`🍽️ Classified as dish with price: "${cleanName}" from "${line}"`);
+      } else {
+        classification = 'price-only';
+        classificationReason = 'Line contains price but no valid dish name';
+        console.log(`💰 Classified as price-only (no valid dish): "${line}"`);
+        logRejectedLine(line, 'Contains price but no valid dish name after cleaning');
+      }
     } else if (hasThaiText(line) && line.length > 3 && line.length < 100) {
       const cleanName = cleanDishName(line);
-      if (cleanName && isLikelyDishName(cleanName)) {
+      if (cleanName && cleanName.length > 2 && isLikelyDishName(cleanName)) {
         classification = 'dish';
         classificationReason = 'Line contains likely dish name in Thai';
         console.log(`🍽️ Found potential dish name on line ${index}: "${cleanName}"`);
@@ -443,12 +467,16 @@ function parseTextToDishes(text: string): SmartDish[] {
       } else {
         classification = 'description';
         classificationReason = 'Thai text but not recognized as dish name';
+        console.log(`📝 Classified as description: "${line}"`);
         logRejectedLine(line, 'Thai text but failed dish name validation');
       }
     } else if (!hasThaiText(line) && /\d/.test(line)) {
       classification = 'price-only';
       classificationReason = 'Contains numbers but no Thai text';
+      console.log(`💰 Classified as price-only (no Thai): "${line}"`);
     }
+
+    const isDishLine = classification === 'dish';
 
     // Log all pattern matching attempts for this line
     logPatternMatchingDetails(
@@ -649,16 +677,22 @@ function cleanDishName(name: string): string {
 }
 
 function isLikelyDishName(name: string): boolean {
-  // Enhanced dish name validation
-  const tooGeneric = ['เมนู', 'ราคา', 'บาท', 'ร้าน', 'อาหาร', 'menu', 'price', 'restaurant']; 
+  // Enhanced dish name validation to prevent false positives
+  const tooGeneric = ['เมนู', 'ราคา', 'บาท', 'ร้าน', 'อาหาร', 'menu', 'price', 'restaurant', 'พิเศษ']; 
   const tooShort = name.length < 3;
   const tooLong = name.length > 80;
   
   // Exclude pure English promotional text or brand names
   const isEnglishPromo = /^[A-Z\s&]+$/.test(name) && name.includes(' ');
   
-  // Exclude lines with only numbers and currency
-  const isOnlyPriceInfo = /^[\d\s\/\-฿บาท]+$/.test(name);
+  // Enhanced: Exclude lines with only numbers, currency, or price-related terms
+  const isOnlyPriceInfo = /^[\d\s\/\-฿บาทพิเศษ,\.]+$/.test(name);
+  
+  // Enhanced: Exclude standalone price patterns including comma-separated prices
+  const isStandalonePriceWord = name.trim() === 'พิเศษ' || 
+                               /^\d+\s*พิเศษ\s*\d+$/.test(name.trim()) ||
+                               /^\d+[\s,\/\-]+\d+[\s,\/\-]*\d*\s*(?:บาท|฿)?$/.test(name.trim()) ||
+                               /^\d{2,4}$/.test(name.trim()); // Just a number
   
   // Must contain Thai characters or be a reasonable dish name
   const hasThaiChars = /[ก-๙]/.test(name);
@@ -669,17 +703,24 @@ function isLikelyDishName(name: string): boolean {
   // Exclude promotional phrases
   const isPromotional = /(โปรโมชั่น|ลดราคา|ฟรี|free|promotion|discount)/i.test(name);
   
-  // Enhanced dish indicators
-  const hasDishIndicators = /(ข้าว|ก๋วยเตี๋ยว|ผัด|ทอด|ยำ|ต้ม|แกง|น้ำ|อาหาร)/.test(name);
+  // Enhanced: Exclude payment method patterns
+  const isPaymentMethod = /(qr|prompt\s*pay|pay|payment)/i.test(name);
+  
+  // Enhanced: More specific dish indicators for Thai food
+  const hasDishIndicators = /(ข้าว|ก๋วยเตี๋ยว|ผัด|ทอด|ยำ|ต้ม|แกง|น้ำ|อาหาร|โจ๊ก|เกา|หมี่|บะหมี่|ไก่|หมู|เนื้อ|กุ้ง|ปลา|ไข่|เต้าหู้)/.test(name);
+  
+  // Enhanced: Require minimum meaningful content
+  const hasMinimumContent = name.replace(/[\d\s\/\-฿บาทพิเศษ,\.]/g, '').length >= 2;
   
   const isValid = !tooShort && !tooLong && 
          !tooGeneric.some(generic => name.toLowerCase() === generic.toLowerCase()) &&
-         !isEnglishPromo && !isOnlyPriceInfo && !isTimePattern && !isPromotional &&
+         !isEnglishPromo && !isOnlyPriceInfo && !isTimePattern && !isPromotional && 
+         !isStandalonePriceWord && !isPaymentMethod && hasMinimumContent &&
          (hasThaiChars || hasDishIndicators);
   
   // Debug logging for dish name validation
   if (!isValid && hasThaiChars) {
-    console.log(`🚨 Rejected potential dish name: "${name}" (short: ${tooShort}, long: ${tooLong}, generic: ${tooGeneric.some(g => name.toLowerCase() === g.toLowerCase())}, promo: ${isEnglishPromo}, priceOnly: ${isOnlyPriceInfo}, time: ${isTimePattern}, promotional: ${isPromotional})`);
+    console.log(`🚨 Rejected potential dish name: "${name}" (short: ${tooShort}, long: ${tooLong}, generic: ${tooGeneric.some(g => name.toLowerCase() === g.toLowerCase())}, promo: ${isEnglishPromo}, priceOnly: ${isOnlyPriceInfo}, standalone: ${isStandalonePriceWord}, payment: ${isPaymentMethod}, minContent: ${hasMinimumContent}, time: ${isTimePattern}, promotional: ${isPromotional})`);
   }
   
   return isValid;
@@ -702,16 +743,89 @@ function removeDuplicateDishes(dishes: SmartDish[]): SmartDish[] {
   const seen = new Set<string>();
   
   for (const dish of dishes) {
-    // Create a normalized key for comparison
-    const key = dish.name.toLowerCase().replace(/\s+/g, '');
+    // Enhanced duplicate detection with fuzzy matching
+    const normalizedName = dish.name.toLowerCase()
+      .replace(/[\s\-\(\)]/g, '') // Remove spaces, hyphens, parentheses
+      .replace(/[ก-๙]/g, m => m.normalize('NFD')) // Normalize Thai characters
+      .trim();
     
-    if (!seen.has(key)) {
-      seen.add(key);
+    // Additional check for very similar names (Levenshtein distance)
+    let isDuplicate = false;
+    let duplicateIndex = -1;
+    
+    for (let i = 0; i < unique.length; i++) {
+      const existingNormalized = unique[i].name.toLowerCase()
+        .replace(/[\s\-\(\)]/g, '')
+        .replace(/[ก-๙]/g, m => m.normalize('NFD'))
+        .trim();
+      
+      // Exact match or very similar (allowing for OCR variations)
+      const similarity = calculateSimilarity(normalizedName, existingNormalized);
+      if (normalizedName === existingNormalized || similarity > 0.85) {
+        isDuplicate = true;
+        duplicateIndex = i;
+        break;
+      }
+    }
+    
+    if (!isDuplicate && !seen.has(normalizedName)) {
+      seen.add(normalizedName);
       unique.push(dish);
+      console.log(`✅ Added unique dish: "${dish.name}" (confidence: ${dish.confidence})`);
+    } else if (isDuplicate && duplicateIndex >= 0) {
+      // If duplicate found, keep the one with higher confidence
+      if (dish.confidence > unique[duplicateIndex].confidence) {
+        console.log(`🔄 Replacing duplicate "${unique[duplicateIndex].name}" (${unique[duplicateIndex].confidence}) with "${dish.name}" (${dish.confidence})`);
+        unique[duplicateIndex] = dish;
+      } else {
+        console.log(`🚫 Skipping duplicate "${dish.name}" (${dish.confidence}) - keeping "${unique[duplicateIndex].name}" (${unique[duplicateIndex].confidence})`);
+      }
+    } else {
+      console.log(`🚫 Skipping duplicate "${dish.name}" (normalized: "${normalizedName}")`);
     }
   }
   
+  console.log(`📊 Final unique dishes: ${unique.length} from original ${dishes.length}`);
   return unique;
+}
+
+// Helper function to calculate string similarity
+function calculateSimilarity(str1: string, str2: string): number {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  return (longer.length - levenshteinDistance(longer, shorter)) / longer.length;
+}
+
+// Helper function to calculate Levenshtein distance
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
 }
 
 function detectLanguage(text: string): string {

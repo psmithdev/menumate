@@ -281,7 +281,7 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
       console.log(`✅ Returning multiple sizes result for "${dishName}"`);
       return {
         dishName,
-        prices: prices.map(p => ({ ...p, allSizes: prices })),
+        prices: prices.map(p => ({ ...p, allSizes: prices.map(price => ({ size: price.size || '', price: price.price })) })),
         isValid: true,
         isDish: true
       };
@@ -299,7 +299,7 @@ export function parseThaiMenuLine(line: string): ThaiMenuLine {
     if (prices.length > 0) {
       return {
         dishName,
-        prices: prices.map(p => ({ ...p, allSizes: prices })),
+        prices: prices.map(p => ({ ...p, allSizes: prices.map(price => ({ size: price.size || '', price: price.price })) })),
         isValid: true,
         isDish: true
       };

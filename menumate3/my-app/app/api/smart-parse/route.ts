@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
       // Convert malformed nested structure to expected flat array
       if (!parsedResult.dishes && typeof parsedResult === 'object') {
         console.log("🔧 Converting nested menu structure to flat array...");
-        const dishes = [];
+        const dishes: any[] = [];
         
         // Extract dishes from nested structure
         for (const [categoryKey, categoryValue] of Object.entries(parsedResult)) {
@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
         console.log("🔧 Detected truncation in string, attempting repair...");
         
         // Find the last complete dish entry
-        const dishesMatch = cleanContent.match(/"dishes":\s*\[(.*)/s);
+        const dishesMatch = cleanContent.match(/"dishes":\s*\[([\s\S]*)/);  
         if (dishesMatch) {
           const dishesContent = dishesMatch[1];
           const lastCompleteItem = dishesContent.lastIndexOf('},{');

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   // Read the file as a base64 string with optimization
   const arrayBuffer = await file.arrayBuffer();
-  let base64Image = Buffer.from(arrayBuffer).toString("base64");
+  const base64Image = Buffer.from(arrayBuffer).toString("base64");
   
   // Check image size for Google Vision API (20MB limit)
   const imageSizeMB = base64Image.length * 0.75 / (1024 * 1024); // Approximate actual image size

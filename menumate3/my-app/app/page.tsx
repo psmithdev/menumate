@@ -142,6 +142,16 @@ export default function MenuTranslatorDesign() {
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [currentProcessingStep, setCurrentProcessingStep] = useState('');
+  const [processingStats, setProcessingStats] = useState<{
+    imageSize: string;
+    ocrTime: number;
+    dishesFound: number;
+    confidence: number;
+  } | null>(null);
+  const [previewText, setPreviewText] = useState<string>('');
+  const [previewDishes, setPreviewDishes] = useState<ParsedDish[]>([]);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -317,23 +327,59 @@ export default function MenuTranslatorDesign() {
     }
   };
 
-  // Enhanced error handling for OCR
+  // Enhanced error handling for OCR with real progress tracking
   useEffect(() => {
     if (currentScreen === "processing" && menuImage) {
       setIsProcessing(true);
       setProcessingError(null);
       setRetryCount(0);
+      setProcessingProgress(0);
+      setCurrentProcessingStep('Initializing...');
+      setProcessingStats(null);
+      setPreviewText('');
+      setPreviewDishes([]);
 
       const performOcr = async () => {
         try {
+          // Step 1: Image preprocessing (0-20%)
+          setProcessingProgress(5);
+          setCurrentProcessingStep('Analyzing image quality...');
+          const imageSizeMB = (menuImage.size / (1024 * 1024)).toFixed(2);
+          setProcessingStats({ imageSize: `${imageSizeMB}MB`, ocrTime: 0, dishesFound: 0, confidence: 0 });
+          
+          await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause for UX
+          
+          setProcessingProgress(15);
+          setCurrentProcessingStep('Preparing image for OCR...');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          // Step 2: OCR Processing (20-70%)
+          setProcessingProgress(25);
+          setCurrentProcessingStep('Extracting text from menu...');
+          const ocrStartTime = Date.now();
+          
           // Try Google Cloud Vision + intelligent parsing first (fast & accurate)
           let smartResult = await trySmartParsing(menuImage, false);
+          
+          const ocrTime = Date.now() - ocrStartTime;
+          setProcessingStats(prev => ({ ...prev!, ocrTime }));
+          setProcessingProgress(50);
+          setCurrentProcessingStep('Analyzing menu structure...');
+          
+          // Show preview of extracted text if available
+          if (smartResult && smartResult.dishes) {
+            const previewText = smartResult.dishes.slice(0, 5)
+              .map((dish: { name: string; price?: string }) => `${dish.name} ${dish.price || ''}`)
+              .join('\n');
+            setPreviewText(previewText);
+          }
 
           // If Google Vision fails or returns few dishes, try GPT-4o fallback
           if (
             !smartResult ||
             (smartResult.dishes && smartResult.dishes.length < 8)
           ) {
+            setProcessingProgress(60);
+            setCurrentProcessingStep('Trying advanced parsing fallback...');
             console.log(
               "🔄 Google Vision result insufficient, trying GPT-4o fallback..."
             );
@@ -341,9 +387,55 @@ export default function MenuTranslatorDesign() {
           }
 
           if (smartResult) {
+            // Step 3: Dish analysis and enhancement (70-90%)
+            setProcessingProgress(75);
+            setCurrentProcessingStep('Analyzing dishes and prices...');
+            
+            const dishCount = smartResult.dishes.length;
+            setProcessingStats(prev => ({ ...prev!, dishesFound: dishCount, confidence: smartResult.confidence }));
+            
+            // Show preview of first few dishes as they're being processed
+            const previewDishes = smartResult.dishes.slice(0, 3).map(
+              (dish: {
+                name: string;
+                price?: string;
+                category?: string;
+                spiceLevel?: number;
+                isVegetarian?: boolean;
+              }, index: number) => ({
+                id: `preview-dish-${index}`,
+                originalName: dish.name,
+                originalPrice: dish.price || "Price not detected",
+                translatedName: undefined,
+                translatedPrice: undefined,
+                description: `${dish.category ? `${dish.category.charAt(0).toUpperCase() + dish.category.slice(1)} - ` : ""}${dish.name}`,
+                tags: [dish.category || "dish"].filter(Boolean),
+                isVegetarian: dish.isVegetarian || false,
+                isVegan: false,
+                isGlutenFree: false,
+                isDairyFree: false,
+                isNutFree: false,
+                spiceLevel: dish.spiceLevel || 0,
+                rating: 4.5,
+                time: "15 min",
+                calories: 300,
+                protein: "15g",
+                ingredients: [],
+              })
+            );
+            setPreviewDishes(previewDishes);
+            
+            await new Promise(resolve => setTimeout(resolve, 800)); // Allow UI to update
+            
             // Convert smart result to ParsedDish format
             const dishes = smartResult.dishes.map(
-              (dish: any, index: number) => ({
+              (dish: {
+                name: string;
+                price?: string;
+                category?: string;
+                spiceLevel?: number;
+                isVegetarian?: boolean;
+              }, index: number) => ({
                 id: `smart-dish-${index}`,
                 originalName: dish.name,
                 originalPrice: dish.price || "Price not detected",
@@ -372,19 +464,33 @@ export default function MenuTranslatorDesign() {
               })
             );
 
+            // Step 4: Finalization (90-100%)
+            setProcessingProgress(90);
+            setCurrentProcessingStep('Finalizing menu analysis...');
+            
             // Set OCR text for translation system compatibility
             const combinedText = smartResult.dishes
-              .map((dish: any) => `${dish.name} ${dish.price || ""}`)
+              .map((dish: { name: string; price?: string }) => `${dish.name} ${dish.price || ""}`)
               .join("\n");
 
             setParsedDishes(dishes);
             setOcrText(combinedText);
             setDetectedLanguage(smartResult.language);
+            
+            setProcessingProgress(100);
+            setCurrentProcessingStep('Complete! Preparing results...');
+            
+            // Brief pause to show completion
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             setCurrentScreen("results");
             return;
           }
 
           // Fallback to traditional OCR + regex parsing
+          setProcessingProgress(30);
+          setCurrentProcessingStep('Using traditional OCR fallback...');
+          
           const formData = new FormData();
           formData.append("image", menuImage);
 
@@ -401,6 +507,14 @@ export default function MenuTranslatorDesign() {
           }
 
           const data = await res.json();
+          
+          setProcessingProgress(80);
+          setCurrentProcessingStep('Processing extracted text...');
+          setProcessingStats(prev => ({ ...prev!, ocrTime: data.processingTime || 0, confidence: data.confidence || 0 }));
+          
+          // Show preview of extracted text
+          const textPreview = data.text.split('\n').slice(0, 5).join('\n');
+          setPreviewText(textPreview);
 
           if (!data.text || data.text.trim().length === 0) {
             throw new Error(
@@ -408,7 +522,11 @@ export default function MenuTranslatorDesign() {
             );
           }
 
+          setProcessingProgress(100);
+          setCurrentProcessingStep('Complete!');
           setOcrText(data.text);
+          
+          await new Promise(resolve => setTimeout(resolve, 300));
           setCurrentScreen("results");
         } catch (err) {
           const errorMessage =
@@ -427,6 +545,8 @@ export default function MenuTranslatorDesign() {
           }
         } finally {
           setIsProcessing(false);
+          setProcessingProgress(0);
+          setCurrentProcessingStep('');
         }
       };
 
@@ -794,9 +914,23 @@ export default function MenuTranslatorDesign() {
   }
 
   if (currentScreen === "processing") {
+    const getStepStatus = (stepIndex: number) => {
+      const currentStep = Math.floor(processingProgress / 25);
+      if (stepIndex < currentStep) return 'completed';
+      if (stepIndex === currentStep) return 'active';
+      return 'pending';
+    };
+
+    const processingSteps = [
+      { icon: CheckCircle, label: 'Scanning image quality', detail: processingStats?.imageSize },
+      { icon: Camera, label: 'Extracting text from menu', detail: processingStats?.ocrTime ? `${(processingStats.ocrTime / 1000).toFixed(1)}s` : null },
+      { icon: Sparkles, label: 'Analyzing menu structure', detail: processingStats?.dishesFound ? `${processingStats.dishesFound} items` : null },
+      { icon: CheckCircle, label: 'Finalizing results', detail: processingStats?.confidence ? `${Math.round(processingStats.confidence * 100)}% confidence` : null }
+    ];
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-6">
-        <div className="text-center text-white max-w-sm">
+        <div className="text-center text-white max-w-md">
           {/* Animated Logo */}
           <div className="mb-8">
             <div className="w-24 h-24 bg-white/10 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto mb-6 animate-pulse">
@@ -824,59 +958,140 @@ export default function MenuTranslatorDesign() {
 
           {/* Processing Steps */}
           <div className="space-y-4 mb-8">
-            <h2 className="text-2xl font-bold mb-6">Analyzing Your Menu</h2>
-
-            <div className="flex items-center gap-4 p-4 bg-white/10 backdrop-blur-lg rounded-2xl">
-              <div className="w-8 h-8 bg-green-400 rounded-full flex items-center justify-center">
-                <span className="text-sm">✓</span>
-              </div>
-              <span className="text-left">Scanning image quality</span>
+            <h2 className="text-2xl font-bold mb-2">Analyzing Your Menu</h2>
+            <div className="text-lg font-medium mb-6">
+              {processingProgress}% • {currentProcessingStep}
             </div>
 
-            <div className="flex items-center gap-4 p-4 bg-white/10 backdrop-blur-lg rounded-2xl">
-              <div className="w-8 h-8 bg-blue-400 rounded-full flex items-center justify-center animate-spin">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-              </div>
-              <span className="text-left">Extracting text from menu</span>
-            </div>
-
-            <div className="flex items-center gap-4 p-4 bg-white/5 backdrop-blur-lg rounded-2xl opacity-50">
-              <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
-                <Globe className="w-4 h-4" />
-              </div>
-              <span className="text-left">Translating dishes</span>
-            </div>
-
-            <div className="flex items-center gap-4 p-4 bg-white/5 backdrop-blur-lg rounded-2xl opacity-50">
-              <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <span className="text-left">Finding perfect matches</span>
-            </div>
+            {processingSteps.map((step, index) => {
+              const status = getStepStatus(index);
+              const StepIcon = step.icon;
+              
+              return (
+                <div key={index} className={`flex items-center gap-4 p-4 backdrop-blur-lg rounded-2xl transition-all duration-500 ${
+                  status === 'completed' ? 'bg-green-500/20 border border-green-500/30' :
+                  status === 'active' ? 'bg-blue-500/20 border border-blue-500/30' :
+                  'bg-white/5 border border-white/10'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    status === 'completed' ? 'bg-green-500' :
+                    status === 'active' ? 'bg-blue-500 animate-pulse' :
+                    'bg-gray-500'
+                  }`}>
+                    {status === 'completed' ? (
+                      <span className="text-sm font-bold">✓</span>
+                    ) : status === 'active' ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <StepIcon className="w-4 h-4" />
+                    )}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <div className="font-medium">{step.label}</div>
+                    {step.detail && (
+                      <div className="text-sm text-white/70 mt-1">{step.detail}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Progress Bar */}
-          <div className="w-full bg-white/20 rounded-full h-2 mb-4">
-            <div className="bg-gradient-to-r from-blue-400 to-purple-400 h-2 rounded-full w-1/2 animate-pulse"></div>
+          <div className="w-full bg-white/20 rounded-full h-3 mb-6 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-blue-400 to-purple-400 h-3 rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${processingProgress}%` }}
+            ></div>
           </div>
+
+          {/* Live Stats */}
+          {processingStats && (
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {processingStats.imageSize && (
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
+                  <div className="text-xs text-white/60">Image Size</div>
+                  <div className="font-bold">{processingStats.imageSize}</div>
+                </div>
+              )}
+              {processingStats.ocrTime > 0 && (
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
+                  <div className="text-xs text-white/60">OCR Time</div>
+                  <div className="font-bold">{(processingStats.ocrTime / 1000).toFixed(1)}s</div>
+                </div>
+              )}
+              {processingStats.dishesFound > 0 && (
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
+                  <div className="text-xs text-white/60">Dishes Found</div>
+                  <div className="font-bold">{processingStats.dishesFound}</div>
+                </div>
+              )}
+              {processingStats.confidence > 0 && (
+                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
+                  <div className="text-xs text-white/60">Confidence</div>
+                  <div className="font-bold">{Math.round(processingStats.confidence * 100)}%</div>
+                </div>
+              )}
+            </div>
+          )}
 
           {processingError && (
-            <div className="text-red-400 text-sm mb-4">{processingError}</div>
+            <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 mb-4">
+              <div className="text-red-300 text-sm">{processingError}</div>
+            </div>
           )}
-          <p className="text-white/70 text-sm">
-            This usually takes 10-15 seconds
+          
+          <p className="text-white/60 text-sm mb-6">
+            {processingProgress < 50 ? 'Analyzing your image...' :
+             processingProgress < 90 ? 'Processing menu data...' :
+             'Almost done!'}
           </p>
 
-          {/* Auto advance after delay */}
-          <div className="mt-8">
-            <Button
-              onClick={() => setCurrentScreen("results")}
-              variant="ghost"
-              className="text-white/50 text-sm hover:text-white"
-            >
-              Skip to results →
-            </Button>
-          </div>
+          {/* Streaming Preview */}
+          {(previewText || previewDishes.length > 0) && processingProgress > 40 && (
+            <div className="mt-6 bg-white/10 backdrop-blur-lg rounded-xl p-4">
+              <div className="text-sm text-white/80 mb-3 flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                Live Preview
+              </div>
+              
+              {previewDishes.length > 0 ? (
+                <div className="space-y-2 text-left">
+                  {previewDishes.map((dish) => (
+                    <div key={dish.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <div className="font-medium text-sm">{dish.originalName}</div>
+                      <div className="text-xs text-white/60 mt-1">{dish.originalPrice}</div>
+                    </div>
+                  ))}
+                  {processingStats && processingStats.dishesFound > 3 && (
+                    <div className="text-xs text-white/50 text-center pt-2">
+                      +{processingStats.dishesFound - 3} more dishes...
+                    </div>
+                  )}
+                </div>
+              ) : previewText && (
+                <div className="text-left">
+                  <pre className="text-xs text-white/70 font-mono leading-relaxed whitespace-pre-wrap">
+                    {previewText}
+                    {previewText.split('\n').length >= 5 && '\n...'}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Skip button - only show after some progress */}
+          {processingProgress > 30 && (
+            <div className="mt-6">
+              <Button
+                onClick={() => setCurrentScreen("results")}
+                variant="ghost"
+                className="text-white/50 text-sm hover:text-white transition-colors"
+              >
+                Skip to results →
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     );

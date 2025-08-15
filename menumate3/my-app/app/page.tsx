@@ -7,7 +7,6 @@ import {
   Sparkles,
   Globe,
   Filter,
-  Heart,
   Clock,
   Star,
   ChefHat,
@@ -18,7 +17,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import Image from "next/image";
 import { PhotoUpload } from "@/components/PhotoUpload";
 import React, { useRef } from "react";
 import {
@@ -33,6 +31,11 @@ import { DishCard } from "@/components/dish-card";
 import { parseMenuWithAI } from "@/utils/smartMenuParser";
 import { parseMenuWithGPT4 } from "@/utils/smartMenuParserGPT4";
 import DebugPanel from "@/components/DebugPanel";
+import { DishImage } from "@/components/DishImage";
+import { NutritionInfo } from "@/components/NutritionInfo";
+import { DishActionButtons } from "@/components/DishActionButtons";
+import { SimilarDishes } from "@/components/SimilarDishes";
+import { enhanceDishWithOCR } from "@/utils/enhancedDishParser";
 
 type Screen =
   | "welcome"
@@ -1732,141 +1735,221 @@ export default function MenuTranslatorDesign() {
   }
 
   if (currentScreen === "dish-detail" && selectedDish) {
+    // Enhance dish data with OCR context
+    const enhancedDish = enhanceDishWithOCR(selectedDish, ocrText || undefined, detectedLanguage);
+    
+    const handleShareDish = () => {
+      // Custom share logic for this dish
+      console.log('Sharing dish:', enhancedDish);
+    };
+
     return (
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-10">
+        {/* Enhanced Header */}
+        <div className="sticky top-0 bg-white/95 backdrop-blur-lg border-b border-gray-200 z-20 shadow-sm">
           <div className="p-4">
             <div className="flex items-center justify-between">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setCurrentScreen("results")}
-                className="text-gray-600"
+                className="text-gray-600 hover:text-gray-900 hover:bg-gray-100"
               >
                 ← Back to Menu
               </Button>
-              <Button variant="ghost" size="sm" className="text-gray-600">
-                <Heart className="w-5 h-5" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Hero Image */}
-        <div className="relative h-80">
-          <Image
-            src={"/placeholder.svg"}
-            alt={selectedDish.originalName}
-            fill
-            className="object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
-          <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-sm rounded-full px-4 py-2">
-            <span className="font-bold text-orange-600 text-lg">
-              {selectedDish.translatedPrice || selectedDish.originalPrice}
-            </span>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 bg-white">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              {selectedDish.translatedName || selectedDish.originalName}
-            </h1>
-            <p className="text-gray-500 mb-4">{selectedDish.originalName}</p>
-
-            <div className="flex items-center gap-4 mb-4">
-              <div className="flex items-center gap-1">
-                <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                <span className="font-semibold">
-                  {selectedDish.rating || 4.5}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 text-gray-600">
-                <Clock className="w-4 h-4" />
-                <span>{selectedDish.time || "15 min"}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                {"🌶️".repeat(selectedDish.spiceLevel || 0)}
-                {selectedDish.spiceLevel === 0 && (
-                  <span className="text-gray-400 text-sm">Mild</span>
+              <div className="flex items-center gap-2">
+                {enhancedDish.restaurantInfo?.name && (
+                  <div className="text-sm text-gray-600">
+                    📍 {enhancedDish.restaurantInfo.name}
+                  </div>
                 )}
               </div>
             </div>
-
-            <p className="text-gray-700 leading-relaxed mb-6">
-              {selectedDish.description ||
-                `Delicious ${selectedDish.originalName} prepared with authentic ingredients.`}
-            </p>
           </div>
-
-          {/* Nutrition Info */}
-          <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
-            <div>
-              <p className="text-sm text-gray-500">Calories</p>
-              <p className="font-semibold">{selectedDish.calories || 300}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Protein</p>
-              <p className="font-semibold">{selectedDish.protein || "20g"}</p>
-            </div>
-          </div>
-
-          {/* Ingredients */}
-          {selectedDish.ingredients && selectedDish.ingredients.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Ingredients
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {selectedDish.ingredients.map((ingredient: string) => (
-                  <Badge
-                    key={ingredient}
-                    variant="outline"
-                    className="px-3 py-1"
-                  >
-                    {ingredient}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Tags */}
-          {selectedDish.tags && selectedDish.tags.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">Tags</h3>
-              <div className="flex flex-wrap gap-2">
-                {selectedDish.tags.map((tag: string) => (
-                  <Badge key={tag} variant="secondary" className="px-3 py-1">
-                    {tag}
-                  </Badge>
-                ))}
-                {selectedDish.isVegetarian && (
-                  <Badge
-                    variant="outline"
-                    className="px-3 py-1 text-green-600 border-green-200"
-                  >
-                    <Leaf className="w-3 h-3 mr-1" />
-                    Vegetarian
-                  </Badge>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="p-6 bg-white border-t border-gray-200">
-          <div className="flex gap-3">
-            <Button className="flex-1 bg-orange-500 hover:bg-orange-600">
-              Add to Order
-            </Button>
-            <Button variant="outline" className="flex-1">
-              Share Dish
-            </Button>
+        {/* Enhanced Hero Image */}
+        <DishImage 
+          dish={enhancedDish} 
+          className="h-72 sm:h-80" 
+          priority={true}
+        />
+
+        {/* Main Content */}
+        <div className="bg-white">
+          {/* Dish Header */}
+          <div className="p-4 sm:p-6">
+            <div className="mb-4">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+                {enhancedDish.translatedName || enhancedDish.originalName}
+              </h1>
+              
+              {/* Original Language Name */}
+              {enhancedDish.originalLanguageName && enhancedDish.originalLanguageName !== (enhancedDish.translatedName || enhancedDish.originalName) && (
+                <div className="mb-3">
+                  <span className="text-sm text-gray-500">Original: </span>
+                  <span className="text-gray-700 font-medium">{enhancedDish.originalLanguageName}</span>
+                </div>
+              )}
+              
+              {/* Restaurant & Location Info */}
+              {enhancedDish.restaurantInfo && (
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-4">
+                  {enhancedDish.restaurantInfo.cuisine && (
+                    <span className="flex items-center gap-1">
+                      🍽️ {enhancedDish.restaurantInfo.cuisine} Cuisine
+                    </span>
+                  )}
+                  {enhancedDish.restaurantInfo.location && (
+                    <span className="flex items-center gap-1">
+                      📍 {enhancedDish.restaurantInfo.location}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Enhanced Rating & Details */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center gap-1">
+                  <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                  <span className="font-semibold">
+                    {enhancedDish.rating || 4.5}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>{enhancedDish.time || "15 min"}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {enhancedDish.spiceLevel > 0 ? (
+                    <>
+                      {"🌶️".repeat(Math.min(enhancedDish.spiceLevel, 3))}
+                      {enhancedDish.spiceLevel > 3 && "🔥"}
+                    </>
+                  ) : (
+                    <span className="text-gray-400 text-sm">😌 Mild</span>
+                  )}
+                </div>
+                {enhancedDish.confidence > 0.7 && (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <CheckCircle className="w-4 h-4" />
+                    <span className="text-sm">Verified</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-gray-700 leading-relaxed mb-6">
+                {enhancedDish.description ||
+                  `Delicious ${enhancedDish.originalName} prepared with authentic ingredients and traditional cooking methods.`}
+              </p>
+            </div>
+
+            {/* Enhanced Nutrition Info */}
+            <NutritionInfo dish={enhancedDish} className="mb-6" />
+
+            {/* Enhanced Ingredients Section */}
+            {enhancedDish.ingredients && enhancedDish.ingredients.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  🥘 Ingredients
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {enhancedDish.ingredients.map((ingredient: string) => (
+                    <Badge
+                      key={ingredient}
+                      variant="outline"
+                      className="px-3 py-1.5 text-sm hover:bg-gray-50 transition-colors"
+                    >
+                      {ingredient}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Allergens Section */}
+            {enhancedDish.allergens && enhancedDish.allergens.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  ⚠️ Allergens
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {enhancedDish.allergens.map((allergen: string) => (
+                    <Badge
+                      key={allergen}
+                      variant="destructive"
+                      className="px-3 py-1.5 text-sm bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                    >
+                      {allergen.charAt(0).toUpperCase() + allergen.slice(1)}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Please inform staff of any allergies before ordering
+                </p>
+              </div>
+            )}
+
+            {/* Enhanced Tags */}
+            {enhancedDish.tags && enhancedDish.tags.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">🏷️ Tags</h3>
+                <div className="flex flex-wrap gap-2">
+                  {enhancedDish.tags.map((tag: string) => (
+                    <Badge key={tag} variant="secondary" className="px-3 py-1.5 text-sm hover:bg-gray-200 transition-colors">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {enhancedDish.isVegetarian && (
+                    <Badge
+                      variant="outline"
+                      className="px-3 py-1.5 text-sm text-green-600 border-green-200 bg-green-50 hover:bg-green-100"
+                    >
+                      <Leaf className="w-3 h-3 mr-1" />
+                      Vegetarian
+                    </Badge>
+                  )}
+                  {enhancedDish.isVegan && (
+                    <Badge
+                      variant="outline"
+                      className="px-3 py-1.5 text-sm text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                    >
+                      🌱 Vegan
+                    </Badge>
+                  )}
+                  {enhancedDish.isGlutenFree && (
+                    <Badge
+                      variant="outline"
+                      className="px-3 py-1.5 text-sm text-blue-600 border-blue-200 bg-blue-50 hover:bg-blue-100"
+                    >
+                      🌾 Gluten-Free
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Similar Dishes Section */}
+          <div className="px-4 sm:px-6">
+            <SimilarDishes 
+              currentDish={enhancedDish}
+              allDishes={filteredDishes}
+              onDishClick={(dish) => {
+                setSelectedDish(dish);
+                // Scroll to top
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              maxSuggestions={3}
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="p-4 sm:p-6 bg-white border-t border-gray-200 sticky bottom-0 z-10">
+            <DishActionButtons 
+              dish={enhancedDish}
+              onShare={handleShareDish}
+            />
           </div>
         </div>
       </div>

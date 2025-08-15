@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera Test - MenuMate</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-section {
+            background: #2d2d2d;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        button {
+            background: #ff6b35;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #e55a2e;
+        }
+        .secondary {
+            background: transparent;
+            border: 2px solid #666;
+        }
+        .secondary:hover {
+            background: #333;
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            border-radius: 10px;
+            background: black;
+            margin: 10px 0;
+        }
+        canvas {
+            display: none;
+        }
+        .status {
+            background: #333;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .error {
+            background: #660000;
+        }
+        .success {
+            background: #006600;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎥 MenuMate Camera Test</h1>
+    
+    <div class="test-section">
+        <h2>Device Detection</h2>
+        <div class="status" id="deviceInfo">Detecting device...</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Camera Permissions Test</h2>
+        <button onclick="testCameraPermissions()">Test Camera Access</button>
+        <div class="status" id="permissionStatus">Not tested yet</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Live Camera Test (Desktop)</h2>
+        <button onclick="startLiveCamera()">Start Live Camera</button>
+        <button onclick="stopLiveCamera()" class="secondary">Stop Camera</button>
+        <button onclick="captureFromLive()">Capture Photo</button>
+        <br>
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="canvas"></canvas>
+        <div class="status" id="liveStatus">Ready to test</div>
+        <div id="capturedImage"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>File Input Tests</h2>
+        <button onclick="testCameraFileInput()">Test "Take Photo" (Mobile)</button>
+        <button onclick="testGalleryFileInput()" class="secondary">Test "Upload Gallery"</button>
+        <div class="status" id="fileStatus">Ready to test</div>
+        <div id="fileResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Hybrid Function Test</h2>
+        <button onclick="testHybridTakePhoto()">Test Take Photo (Hybrid)</button>
+        <div class="status" id="hybridStatus">Ready to test</div>
+    </div>
+
+    <script>
+        let stream = null;
+
+        // Device detection
+        function detectDevice() {
+            const isDesktop = window.innerWidth > 768 && 
+                            !('ontouchstart' in window) && 
+                            navigator.userAgent.indexOf('Mobile') === -1;
+            
+            const info = {
+                isDesktop,
+                width: window.innerWidth,
+                height: window.innerHeight,
+                touchSupport: 'ontouchstart' in window,
+                userAgent: navigator.userAgent.substring(0, 80) + '...',
+                mediaDevices: !!navigator.mediaDevices,
+                getUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+            };
+
+            document.getElementById('deviceInfo').innerHTML = `
+                <strong>Device Type:</strong> ${isDesktop ? 'Desktop/Laptop' : 'Mobile/Tablet'}<br>
+                <strong>Screen:</strong> ${info.width}x${info.height}<br>
+                <strong>Touch Support:</strong> ${info.touchSupport}<br>
+                <strong>Media Devices API:</strong> ${info.mediaDevices}<br>
+                <strong>getUserMedia:</strong> ${info.getUserMedia}<br>
+                <strong>User Agent:</strong> ${info.userAgent}
+            `;
+        }
+
+        // Test camera permissions
+        async function testCameraPermissions() {
+            const status = document.getElementById('permissionStatus');
+            status.textContent = 'Testing camera permissions...';
+            status.className = 'status';
+
+            try {
+                const testStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                testStream.getTracks().forEach(track => track.stop());
+                status.textContent = '✅ Camera permission granted!';
+                status.className = 'status success';
+            } catch (error) {
+                status.textContent = `❌ Camera permission denied: ${error.message}`;
+                status.className = 'status error';
+            }
+        }
+
+        // Live camera functions
+        async function startLiveCamera() {
+            const video = document.getElementById('video');
+            const status = document.getElementById('liveStatus');
+            
+            status.textContent = 'Starting camera...';
+            status.className = 'status';
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'user', // Front camera for desktop
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                video.srcObject = stream;
+                status.textContent = '✅ Live camera active!';
+                status.className = 'status success';
+            } catch (error) {
+                status.textContent = `❌ Live camera failed: ${error.message}`;
+                status.className = 'status error';
+            }
+        }
+
+        function stopLiveCamera() {
+            const video = document.getElementById('video');
+            const status = document.getElementById('liveStatus');
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+                status.textContent = 'Camera stopped';
+                status.className = 'status';
+            }
+        }
+
+        function captureFromLive() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const status = document.getElementById('liveStatus');
+            const resultDiv = document.getElementById('capturedImage');
+
+            if (!stream) {
+                status.textContent = '❌ Start camera first!';
+                status.className = 'status error';
+                return;
+            }
+
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            canvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                resultDiv.innerHTML = `<img src="${url}" style="max-width: 200px; border-radius: 10px;" />`;
+                status.textContent = '✅ Photo captured successfully!';
+                status.className = 'status success';
+            }, 'image/jpeg', 0.8);
+        }
+
+        // File input tests
+        function testCameraFileInput() {
+            const status = document.getElementById('fileStatus');
+            const results = document.getElementById('fileResults');
+            
+            status.textContent = 'Opening camera file input...';
+            status.className = 'status';
+
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.capture = 'environment'; // Rear camera preference
+            input.style.display = 'none';
+            
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const url = URL.createObjectURL(file);
+                    results.innerHTML = `<img src="${url}" style="max-width: 200px; border-radius: 10px;" />`;
+                    status.textContent = `✅ File selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`;
+                    status.className = 'status success';
+                } else {
+                    status.textContent = '❌ No file selected';
+                    status.className = 'status error';
+                }
+            };
+
+            document.body.appendChild(input);
+            input.click();
+            document.body.removeChild(input);
+        }
+
+        function testGalleryFileInput() {
+            const status = document.getElementById('fileStatus');
+            const results = document.getElementById('fileResults');
+            
+            status.textContent = 'Opening gallery file input...';
+            status.className = 'status';
+
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            // No capture attribute for gallery
+            input.style.display = 'none';
+            
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const url = URL.createObjectURL(file);
+                    results.innerHTML = `<img src="${url}" style="max-width: 200px; border-radius: 10px;" />`;
+                    status.textContent = `✅ File selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`;
+                    status.className = 'status success';
+                } else {
+                    status.textContent = '❌ No file selected';
+                    status.className = 'status error';
+                }
+            };
+
+            document.body.appendChild(input);
+            input.click();
+            document.body.removeChild(input);
+        }
+
+        // Hybrid function test (mimics our app logic)
+        function testHybridTakePhoto() {
+            const status = document.getElementById('hybridStatus');
+            
+            const isDesktop = window.innerWidth > 768 && 
+                            !('ontouchstart' in window) && 
+                            navigator.userAgent.indexOf('Mobile') === -1;
+            
+            status.textContent = `Detected: ${isDesktop ? 'Desktop' : 'Mobile'} - ${isDesktop ? 'Using live camera' : 'Using file input'}`;
+            status.className = 'status';
+
+            if (isDesktop) {
+                // Desktop: try live camera
+                startLiveCamera().then(() => {
+                    status.textContent = '✅ Desktop: Live camera started successfully!';
+                    status.className = 'status success';
+                }).catch(() => {
+                    status.textContent = '⚠️ Desktop: Live camera failed, would fallback to file input';
+                    status.className = 'status error';
+                });
+            } else {
+                // Mobile: use file input
+                testCameraFileInput();
+                status.textContent = '📱 Mobile: Using file input with camera preference';
+                status.className = 'status';
+            }
+        }
+
+        // Initialize
+        detectDevice();
+    </script>
+</body>
+</html>

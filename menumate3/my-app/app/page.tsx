@@ -661,6 +661,7 @@ export default function MenuTranslatorDesign() {
     }
   }, [translatedText]);
 
+
   if (currentScreen === "welcome") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-400 relative overflow-hidden">
@@ -798,21 +799,6 @@ export default function MenuTranslatorDesign() {
       fileInputRef.current?.click();
     };
 
-    const triggerCameraInput = () => {
-      // Create a new file input specifically for camera capture
-      const cameraInput = document.createElement('input');
-      cameraInput.type = 'file';
-      cameraInput.accept = 'image/*';
-      cameraInput.capture = 'environment';
-      cameraInput.style.display = 'none';
-      cameraInput.onchange = (e) => {
-        const event = e as unknown as React.ChangeEvent<HTMLInputElement>;
-        handleFileChange(event);
-      };
-      document.body.appendChild(cameraInput);
-      cameraInput.click();
-      document.body.removeChild(cameraInput);
-    };
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">
@@ -855,16 +841,30 @@ export default function MenuTranslatorDesign() {
 
           {/* Action Buttons */}
           <div className="space-y-4 w-full max-w-sm">
-            {/* Primary Action - Camera */}
+            {/* Primary Action - Take Photo */}
             <Button
-              onClick={triggerCameraInput}
+              onClick={() => {
+                // Create file input optimized for camera capture
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.capture = 'environment'; // Prioritize rear camera
+                input.style.display = 'none';
+                input.onchange = (e) => {
+                  const event = e as unknown as React.ChangeEvent<HTMLInputElement>;
+                  handleFileChange(event);
+                };
+                document.body.appendChild(input);
+                input.click();
+                document.body.removeChild(input);
+              }}
               className="w-full h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl text-lg font-semibold shadow-xl flex items-center justify-center gap-3"
             >
               <Camera className="w-6 h-6" />
               Take Photo
             </Button>
 
-            {/* Secondary Action - Upload */}
+            {/* Secondary Action - Upload from Gallery */}
             <Button
               onClick={triggerFileInput}
               variant="outline"
@@ -885,13 +885,13 @@ export default function MenuTranslatorDesign() {
           {/* Tips */}
           <div className="mt-8 text-center">
             <p className="text-white/60 text-sm mb-2">
-              💡 <strong>Pro tips:</strong>
+              💡 <strong>How it works:</strong>
             </p>
             <ul className="text-white/50 text-xs space-y-1 max-w-sm">
-              <li>• Ensure good lighting for best results</li>
-              <li>• Hold your device steady</li>
-              <li>• Include the entire menu section you want translated</li>
-              <li>• Avoid shadows and reflections</li>
+              <li>• <strong>Take Photo:</strong> Opens camera app directly</li>
+              <li>• <strong>Upload from Gallery:</strong> Browse existing photos</li>
+              <li>• Best results: Good lighting, steady hands, clear text</li>
+              <li>• Include the full menu section you want translated</li>
             </ul>
           </div>
         </div>

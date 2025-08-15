@@ -29,13 +29,13 @@ export default function DebugPanel() {
     setTimeout(() => setLastAction(null), 3000);
   };
 
-  // // Only show in development or when explicitly enabled
-  // if (
-  //   process.env.NODE_ENV === "production" &&
-  //   !process.env.NEXT_PUBLIC_ENABLE_DEBUG
-  // ) {
-  //   return null;
-  // }
+  // Only show in development or when explicitly enabled
+  if (
+    process.env.NODE_ENV === "production" &&
+    !process.env.NEXT_PUBLIC_ENABLE_DEBUG
+  ) {
+    return null;
+  }
 
   return (
     <>

@@ -1,19 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Camera,
   Upload,
   Sparkles,
   Globe,
-  Filter,
   Clock,
   Star,
   ChefHat,
-  Leaf,
-  Flame,
   CheckCircle,
-  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,11 +22,12 @@ import {
 import { TranslationCache } from "@/utils/translationCache";
 import { detectLanguage, getLanguageName } from "@/utils/languages";
 import { QRCodeSection } from "@/components/QRCodeSection";
-import { CartButton } from "@/components/CartButton";
-import { DishCard } from "@/components/dish-card";
 import { parseMenuWithAI } from "@/utils/smartMenuParser";
 import { parseMenuWithGPT4 } from "@/utils/smartMenuParserGPT4";
 import DebugPanel from "@/components/DebugPanel";
+import { ResultsScreen } from "@/components/ResultsScreen";
+import { FiltersScreen } from "@/components/FiltersScreen";
+import { useDishFilters, defaultFilters } from "@/hooks/useDishFilters";
 import { DishImage } from "@/components/DishImage";
 import { NutritionInfo } from "@/components/NutritionInfo";
 import { DishActionButtons } from "@/components/DishActionButtons";
@@ -165,167 +162,39 @@ export default function MenuTranslatorDesign() {
   const [parsedDishes, setParsedDishes] = useState<ParsedDish[]>([]);
   const [detectedLanguage, setDetectedLanguage] = useState<string>("en");
   const [targetLanguage, setTargetLanguage] = useState<string>("en");
+  
+  // Temporary filter state for the filters screen
+  const [tempFilters, setTempFilters] = useState(defaultFilters);
+  
+  // Always call hooks at top level
+  const {
+    filteredDishes: tempFilteredDishes,
+    filters: currentFilters,
+    isLoading: filtersLoading
+  } = useDishFilters(parsedDishes);
 
-  // Filter states
-  const [filters, setFilters] = useState({
-    dietary: {
-      vegetarian: false,
-      vegan: false,
-      glutenFree: false,
-      dairyFree: false,
-      nutFree: false,
-    },
-    maxSpiceLevel: 4,
-    priceRange: { min: 0, max: 200 },
-    sortBy: "recommended" as "recommended" | "rating" | "price" | "time",
-  });
 
-  // Filtered dishes state
-  const [filteredDishes, setFilteredDishes] = useState<ParsedDish[]>([]);
-
-  // Enhanced function to extract price number from price string with multiple currency support
-  const extractPriceNumber = useCallback((priceString: string): number => {
-    if (!priceString || priceString === "Price not detected") return 0;
-
-    // Enhanced regex to handle various price formats including currencies and Thai baht
-    const priceMatch = priceString.match(
-      /(?:[฿$€£¥₹₽]?\s?)?(\d{1,5}(?:[.,]\d{1,2})?)\s?(?:บาท|baht|dollars?|euros?|pounds?|yen|rupees?|฿|$|€|£|¥|₹|₽)?/i
-    );
-
-    if (priceMatch) {
-      let price = parseFloat(priceMatch[1].replace(",", "."));
-
-      // Convert common currencies to USD equivalent for comparison
-      // These are rough conversions for filter comparison purposes
-      if (
-        priceString.includes("฿") ||
-        priceString.includes("บาท") ||
-        priceString.includes("baht")
-      ) {
-        price = price * 0.029; // THB to USD (approximate)
-      } else if (priceString.includes("¥")) {
-        price = price * 0.007; // JPY to USD (approximate)
-      } else if (priceString.includes("€")) {
-        price = price * 1.1; // EUR to USD (approximate)
-      } else if (priceString.includes("£")) {
-        price = price * 1.27; // GBP to USD (approximate)
-      }
-      // Default assumes USD or treats as USD equivalent
-
-      return price;
-    }
-
-    return 0;
-  }, []);
-
-  // Function to filter and sort dishes based on current filters
-  const applyFilters = useCallback(
-    (dishes: ParsedDish[]): ParsedDish[] => {
-      const filteredDishes = dishes.filter((dish) => {
-        // Dietary filters
-        if (filters.dietary.vegetarian && !dish.isVegetarian) return false;
-        if (filters.dietary.vegan && !dish.isVegan) return false;
-        if (filters.dietary.glutenFree && !dish.isGlutenFree) return false;
-        if (filters.dietary.dairyFree && !dish.isDairyFree) return false;
-        if (filters.dietary.nutFree && !dish.isNutFree) return false;
-
-        // Spice level filter
-        if (dish.spiceLevel > filters.maxSpiceLevel) return false;
-
-        // Price range filter
-        const price = extractPriceNumber(dish.originalPrice);
-        if (
-          price > 0 &&
-          (price < filters.priceRange.min || price > filters.priceRange.max)
-        )
-          return false;
-
-        return true;
-      });
-
-      // Sort the filtered dishes with enhanced sorting logic
-      return filteredDishes.sort((a, b) => {
-        switch (filters.sortBy) {
-          case "rating":
-            // Sort by rating, then by name for tie-breaking
-            const ratingDiff = (b.rating || 4.0) - (a.rating || 4.0);
-            return ratingDiff !== 0
-              ? ratingDiff
-              : a.originalName.localeCompare(b.originalName);
-
-          case "price":
-            // Sort by price, handling "Price not detected" items by putting them last
-            const priceA = extractPriceNumber(a.originalPrice);
-            const priceB = extractPriceNumber(b.originalPrice);
-            if (priceA === 0 && priceB === 0)
-              return a.originalName.localeCompare(b.originalName);
-            if (priceA === 0) return 1; // Move "Price not detected" to end
-            if (priceB === 0) return -1; // Move "Price not detected" to end
-            return priceA - priceB;
-
-          case "time":
-            // Sort by preparation time, then by rating
-            const aTime = parseInt(a.time?.match(/\d+/)?.[0] || "15");
-            const bTime = parseInt(b.time?.match(/\d+/)?.[0] || "15");
-            const timeDiff = aTime - bTime;
-            return timeDiff !== 0
-              ? timeDiff
-              : (b.rating || 4.0) - (a.rating || 4.0);
-
-          default: // recommended - intelligent sorting based on multiple factors
-            // Sort by a combination of rating, spice level preference, and alphabetical
-            let score = 0;
-
-            // Factor in rating (higher is better)
-            score += (b.rating || 4.0) - (a.rating || 4.0);
-
-            // Factor in vegetarian preference if filter is active
-            if (
-              filters.dietary.vegetarian &&
-              a.isVegetarian !== b.isVegetarian
-            ) {
-              score += a.isVegetarian ? 1 : -1;
-            }
-
-            // Factor in spice level preference (closer to max preference is better)
-            const spiceDiffA = Math.abs(a.spiceLevel - filters.maxSpiceLevel);
-            const spiceDiffB = Math.abs(b.spiceLevel - filters.maxSpiceLevel);
-            score += (spiceDiffA - spiceDiffB) * 0.1;
-
-            // Fall back to alphabetical for tie-breaking
-            return score !== 0
-              ? score
-              : a.originalName.localeCompare(b.originalName);
-        }
-      });
-
-      return filteredDishes;
-    },
-    [filters, extractPriceNumber]
-  );
-
-  // Update filtered dishes when parsedDishes or filters change
-  useEffect(() => {
-    if (parsedDishes.length > 0) {
-      const filtered = applyFilters(parsedDishes);
-      setFilteredDishes(filtered);
-    } else {
-      setFilteredDishes([]);
-    }
-  }, [parsedDishes, filters, applyFilters]);
 
   // Smart parsing function with Google Cloud Vision (primary) and GPT-4o (fallback)
   const trySmartParsing = async (imageFile: File, useGPT4Fallback = false) => {
     try {
       if (useGPT4Fallback) {
-        console.log("🔄 Trying GPT-4o fallback...");
+        if (process.env.NODE_ENV === "development") {
+          console.log("🔄 Trying GPT-4o fallback...");
+        }
         const result = await parseMenuWithGPT4(imageFile);
-        console.log("✅ GPT-4o parsing result:", result);
+        if (process.env.NODE_ENV === "development") {
+          console.log("✅ GPT-4o parsing result:", result);
+        }
         return result;
       } else {
-        console.log("🚀 Using Google Cloud Vision + intelligent parsing...");
+        if (process.env.NODE_ENV === "development") {
+          console.log("🚀 Using Google Cloud Vision + intelligent parsing...");
+        }
         const result = await parseMenuWithAI(imageFile);
-        console.log("✅ Google Vision parsing result:", result);
+        if (process.env.NODE_ENV === "development") {
+          console.log("✅ Google Vision parsing result:", result);
+        }
         return result;
       }
     } catch (error) {
@@ -387,9 +256,11 @@ export default function MenuTranslatorDesign() {
           ) {
             setProcessingProgress(60);
             setCurrentProcessingStep('Trying advanced parsing fallback...');
-            console.log(
-              "🔄 Google Vision result insufficient, trying GPT-4o fallback..."
-            );
+            if (process.env.NODE_ENV === "development") {
+              console.log(
+                "🔄 Google Vision result insufficient, trying GPT-4o fallback..."
+              );
+            }
             smartResult = await trySmartParsing(menuImage, true);
           }
 
@@ -767,11 +638,13 @@ export default function MenuTranslatorDesign() {
         setCameraError("Compressing large image...");
         try {
           finalFile = await compressImage(file, 0.8, 1920, 1080);
-          console.log(
-            `Compressed image from ${(file.size / 1024 / 1024).toFixed(
-              2
-            )}MB to ${(finalFile.size / 1024 / 1024).toFixed(2)}MB`
-          );
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              `Compressed image from ${(file.size / 1024 / 1024).toFixed(
+                2
+              )}MB to ${(finalFile.size / 1024 / 1024).toFixed(2)}MB`
+            );
+          }
           setCameraError(null);
         } catch (error) {
           console.error("Compression failed:", error);
@@ -851,13 +724,19 @@ export default function MenuTranslatorDesign() {
               // Ensure video metadata is loaded
               videoRef.current.onloadedmetadata = () => {
                 if (videoRef.current) {
-                  videoRef.current.play().catch(e => console.log('Video play failed:', e));
+                  videoRef.current.play().catch(e => {
+                    if (process.env.NODE_ENV === "development") {
+                      console.log('Video play failed:', e);
+                    }
+                  });
                 }
               };
             }
           }, 100);
         } catch (error) {
-          console.log('Camera access denied:', error);
+          if (process.env.NODE_ENV === "development") {
+            console.log('Camera access denied:', error);
+          }
           setCameraError("Camera access denied. Using file picker fallback...");
           setTimeout(() => {
             setCameraError(null);
@@ -1346,275 +1225,21 @@ export default function MenuTranslatorDesign() {
 
   if (currentScreen === "results") {
     return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header */}
-        <div className="sticky top-0 bg-white/80 backdrop-blur-lg border-b border-gray-200 z-10">
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Menu Discovered
-                </h1>
-                <div className="flex items-center gap-3 text-sm text-gray-600">
-                  <span>
-                    {filteredDishes.length} dishes found{" "}
-                    {filteredDishes.length !== parsedDishes.length &&
-                      `(${parsedDishes.length} total)`}
-                  </span>
-                  {detectedLanguage && (
-                    <Badge variant="outline" className="text-xs">
-                      <Globe className="w-3 h-3 mr-1" />
-                      {getLanguageName(detectedLanguage)}
-                    </Badge>
-                  )}
-                  {translatedText && (
-                    <Badge
-                      variant="secondary"
-                      className="text-xs bg-green-100 text-green-700"
-                    >
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Translated
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentScreen("share")}
-                  className="rounded-full"
-                  disabled={filteredDishes.length === 0}
-                >
-                  <Share2 className="w-4 h-4 mr-2" />
-                  Share
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setCurrentScreen("filters");
-                  }}
-                  className="rounded-full"
-                >
-                  <Filter className="w-4 h-4 mr-2" />
-                  Filter
-                </Button>
-              </div>
-            </div>
-
-            {/* Quick Filters */}
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              <Badge
-                variant={filters.dietary.vegetarian ? "secondary" : "outline"}
-                className={`whitespace-nowrap cursor-pointer ${
-                  filters.dietary.vegetarian
-                    ? "bg-orange-100 text-orange-700 border-orange-200"
-                    : "hover:bg-gray-100"
-                }`}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    dietary: {
-                      ...prev.dietary,
-                      vegetarian: !prev.dietary.vegetarian,
-                    },
-                  }))
-                }
-              >
-                <Leaf className="w-3 h-3 mr-1" />
-                Vegetarian
-              </Badge>
-              <Badge
-                variant={filters.maxSpiceLevel < 4 ? "secondary" : "outline"}
-                className={`whitespace-nowrap cursor-pointer ${
-                  filters.maxSpiceLevel < 4
-                    ? "bg-red-100 text-red-700 border-red-200"
-                    : "hover:bg-gray-100"
-                }`}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    maxSpiceLevel: prev.maxSpiceLevel < 4 ? 4 : 2,
-                  }))
-                }
-              >
-                <Flame className="w-3 h-3 mr-1" />
-                Spicy
-              </Badge>
-              <Badge
-                variant={filters.priceRange.max <= 20 ? "secondary" : "outline"}
-                className={`whitespace-nowrap cursor-pointer ${
-                  filters.priceRange.max <= 20
-                    ? "bg-green-100 text-green-700 border-green-200"
-                    : "hover:bg-gray-100"
-                }`}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    priceRange: {
-                      ...prev.priceRange,
-                      max: prev.priceRange.max <= 20 ? 50 : 20,
-                    },
-                  }))
-                }
-              >
-                Under $20
-              </Badge>
-              <Badge
-                variant={filters.sortBy === "time" ? "secondary" : "outline"}
-                className={`whitespace-nowrap cursor-pointer ${
-                  filters.sortBy === "time"
-                    ? "bg-blue-100 text-blue-700 border-blue-200"
-                    : "hover:bg-gray-100"
-                }`}
-                onClick={() =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    sortBy: prev.sortBy === "time" ? "recommended" : "time",
-                  }))
-                }
-              >
-                Quick ({"<"}20min)
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        {/* OCR Results Section */}
-        {ocrText && (
-          <div className="p-4 bg-white border-b border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Globe className="w-5 h-5 text-blue-500" />
-                {translatedText ? "Original vs Translated" : "Extracted Text"}
-              </h2>
-              {!translatedText && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentScreen("translate")}
-                  className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                >
-                  Translate →
-                </Button>
-              )}
-            </div>
-
-            {translatedText ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                    Original ({getLanguageName(detectedLanguage)})
-                  </h3>
-                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
-                      {ocrText}
-                    </pre>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-green-500" />
-                    Translated (English)
-                  </h3>
-                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                    <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono leading-relaxed">
-                      {translatedText}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
-                  {ocrText}
-                </pre>
-              </div>
-            )}
-
-            <p className="text-xs text-gray-500 mt-2">
-              {translatedText
-                ? "Side-by-side comparison of original and translated text."
-                : 'This is the raw text extracted from your menu image. Click "Translate" to convert it to English.'}
-            </p>
-          </div>
-        )}
-
-        {/* Dishes Grid */}
-        <div className="p-4">
-          {filteredDishes.length === 0 ? (
-            <div className="text-center py-8">
-              {parsedDishes.length === 0 ? (
-                <>
-                  <p className="text-gray-500 mb-4">
-                    No dishes found in the OCR text.
-                  </p>
-                  <p className="text-sm text-gray-400">
-                    Debug info: {parsedDishes.length} dishes parsed
-                  </p>
-                  {ocrText && (
-                    <details className="mt-4">
-                      <summary className="cursor-pointer text-blue-600">
-                        View OCR Text
-                      </summary>
-                      <pre className="text-xs text-gray-600 mt-2 bg-gray-100 p-2 rounded whitespace-pre-wrap">
-                        {ocrText}
-                      </pre>
-                    </details>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-500 mb-4">
-                    No dishes match your current filters.
-                  </p>
-                  <p className="text-sm text-gray-400 mb-4">
-                    Found {parsedDishes.length} dishes total, but none match
-                    your preferences.
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setCurrentScreen("filters")}
-                    className="text-blue-600 border-blue-200 hover:bg-blue-50"
-                  >
-                    Adjust Filters
-                  </Button>
-                </>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredDishes.map((dish) => (
-                <div key={dish.id} className="relative">
-                  <DishCard
-                    dish={dish}
-                    onClick={() => {
-                      setSelectedDish(dish);
-                      setCurrentScreen("dish-detail");
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Floating Action Buttons */}
-        <div className="fixed bottom-6 right-6 flex flex-col items-end gap-4 z-50">
-          <CartButton />
-          <Button
-            onClick={() => setCurrentScreen("camera")}
-            className="w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 shadow-2xl"
-          >
-            <Camera className="w-6 h-6" />
-          </Button>
-        </div>
-
-        {/* Debug Panel */}
-        <DebugPanel />
-      </div>
+      <ResultsScreen
+        parsedDishes={parsedDishes}
+        ocrText={ocrText}
+        translatedText={translatedText}
+        detectedLanguage={detectedLanguage}
+        onDishClick={(dish) => {
+          setSelectedDish(dish);
+          setCurrentScreen("dish-detail");
+        }}
+        onFiltersClick={() => setCurrentScreen("filters")}
+        onShareClick={() => setCurrentScreen("share")}
+        onTranslateClick={() => setCurrentScreen("translate")}
+        onRetakePhoto={() => setCurrentScreen("camera")}
+        getLanguageName={getLanguageName}
+      />
     );
   }
 
@@ -1740,7 +1365,9 @@ export default function MenuTranslatorDesign() {
     
     const handleShareDish = () => {
       // Custom share logic for this dish
-      console.log('Sharing dish:', enhancedDish);
+      if (process.env.NODE_ENV === "development") {
+        console.log('Sharing dish:', enhancedDish);
+      }
     };
 
     return (
@@ -1905,7 +1532,7 @@ export default function MenuTranslatorDesign() {
                       variant="outline"
                       className="px-3 py-1.5 text-sm text-green-600 border-green-200 bg-green-50 hover:bg-green-100"
                     >
-                      <Leaf className="w-3 h-3 mr-1" />
+                      🌱
                       Vegetarian
                     </Badge>
                   )}
@@ -1934,7 +1561,7 @@ export default function MenuTranslatorDesign() {
           <div className="px-4 sm:px-6">
             <SimilarDishes 
               currentDish={enhancedDish}
-              allDishes={filteredDishes}
+              allDishes={tempFilteredDishes}
               onDishClick={(dish) => {
                 setSelectedDish(dish);
                 // Scroll to top
@@ -1958,234 +1585,23 @@ export default function MenuTranslatorDesign() {
 
   if (currentScreen === "filters") {
     return (
-      <div className="min-h-screen bg-white">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 z-10 p-4">
-          <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              onClick={() => setCurrentScreen("results")}
-              className="text-gray-600"
-            >
-              Cancel
-            </Button>
-            <h1 className="text-lg font-semibold">Filters & Preferences</h1>
-            <Button
-              onClick={() => setCurrentScreen("results")}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-6 rounded-full"
-            >
-              Apply ({filteredDishes.length})
-            </Button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-8">
-          {/* Dietary Preferences */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Dietary Preferences
-            </h3>
-            <div className="space-y-4">
-              {[
-                { label: "Vegetarian", icon: "🥬", key: "vegetarian" as const },
-                { label: "Vegan", icon: "🌱", key: "vegan" as const },
-                {
-                  label: "Gluten-Free",
-                  icon: "🌾",
-                  key: "glutenFree" as const,
-                },
-                { label: "Dairy-Free", icon: "🥛", key: "dairyFree" as const },
-                { label: "Nut-Free", icon: "🥜", key: "nutFree" as const },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{item.icon}</span>
-                    <span className="font-medium text-gray-900">
-                      {item.label}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const newValue = !filters.dietary[item.key];
-                      setFilters((prev) => {
-                        const newFilters = {
-                          ...prev,
-                          dietary: { ...prev.dietary, [item.key]: newValue },
-                        };
-                        return newFilters;
-                      });
-                    }}
-                    className={`w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
-                      filters.dietary[item.key]
-                        ? "bg-orange-500"
-                        : "bg-gray-300"
-                    }`}
-                  >
-                    <div
-                      className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ${
-                        filters.dietary[item.key]
-                          ? "translate-x-6"
-                          : "translate-x-0.5"
-                      }`}
-                    />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Spice Level */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Maximum Spice Level
-            </h3>
-            <div className="bg-gray-50 rounded-2xl p-6">
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-2xl">😌</span>
-                <span className="text-2xl">🌶️</span>
-                <span className="text-2xl">🌶️🌶️</span>
-                <span className="text-2xl">🌶️🌶️🌶️</span>
-                <span className="text-2xl">🔥</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="4"
-                value={filters.maxSpiceLevel}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    maxSpiceLevel: parseInt(e.target.value),
-                  }))
-                }
-                className="w-full h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer slider"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>Mild</span>
-                <span>Very Spicy</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Price Range */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Price Range
-            </h3>
-            <div className="bg-gray-50 rounded-2xl p-6">
-              <div className="flex justify-between items-center mb-4">
-                <span className="font-semibold text-gray-900">
-                  ${filters.priceRange.min}
-                </span>
-                <span className="font-semibold text-gray-900">
-                  ${filters.priceRange.max}+
-                </span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="100"
-                value={filters.priceRange.max}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    priceRange: {
-                      ...prev.priceRange,
-                      max: parseInt(e.target.value),
-                    },
-                  }))
-                }
-                className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* Sort Options */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Sort By
-            </h3>
-            <div className="space-y-2">
-              {[
-                {
-                  label: "Recommended for you",
-                  icon: "⭐",
-                  value: "recommended" as const,
-                },
-                {
-                  label: "Highest rated",
-                  icon: "👍",
-                  value: "rating" as const,
-                },
-                {
-                  label: "Price: Low to high",
-                  icon: "💰",
-                  value: "price" as const,
-                },
-                {
-                  label: "Preparation time",
-                  icon: "⏱️",
-                  value: "time" as const,
-                },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  onClick={() =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      sortBy: item.value,
-                    }))
-                  }
-                  className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-colors ${
-                    filters.sortBy === item.value
-                      ? "bg-orange-50 border-2 border-orange-200"
-                      : "bg-gray-50 hover:bg-gray-100"
-                  }`}
-                >
-                  <span className="text-xl">{item.icon}</span>
-                  <span
-                    className={`font-medium ${
-                      filters.sortBy === item.value
-                        ? "text-orange-700"
-                        : "text-gray-900"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                  {filters.sortBy === item.value && (
-                    <div className="ml-auto w-2 h-2 bg-orange-500 rounded-full"></div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Reset Button */}
-          <Button
-            variant="outline"
-            onClick={() => {
-              setFilters({
-                dietary: {
-                  vegetarian: false,
-                  vegan: false,
-                  glutenFree: false,
-                  dairyFree: false,
-                  nutFree: false,
-                },
-                maxSpiceLevel: 4,
-                priceRange: { min: 5, max: 50 },
-                sortBy: "recommended",
-              });
-            }}
-            className="w-full h-12 rounded-2xl border-gray-300 text-gray-600 bg-transparent"
-          >
-            Reset All Filters
-          </Button>
-        </div>
-      </div>
+      <FiltersScreen
+        filters={tempFilters}
+        filteredCount={tempFilteredDishes.length}
+        isLoading={filtersLoading}
+        onFiltersChange={setTempFilters}
+        onApply={() => {
+          // In a real implementation, this would update the main filters
+          setCurrentScreen("results");
+        }}
+        onCancel={() => {
+          setTempFilters(currentFilters); // Reset to current filters
+          setCurrentScreen("results");
+        }}
+        onReset={() => {
+          setTempFilters(defaultFilters);
+        }}
+      />
     );
   }
 

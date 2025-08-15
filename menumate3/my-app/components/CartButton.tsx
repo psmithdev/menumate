@@ -7,14 +7,13 @@ export function CartButton() {
   const { cart, getCartTotal, removeFromCart, clearCart } = useCart();
   const [open, setOpen] = useState(false);
 
-  console.log("Cart contents:", cart);
 
   if (cart.length === 0) return null;
 
   return (
     <>
       <button
-        className="fixed bottom-6 right-6 z-50 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-colors"
+        className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-colors touch-manipulation"
         onClick={() => setOpen(true)}
       >
         Cart: ฿{getCartTotal().toFixed(2)}

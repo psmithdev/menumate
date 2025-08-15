@@ -798,106 +798,112 @@ export default function MenuTranslatorDesign() {
       fileInputRef.current?.click();
     };
 
+    const triggerCameraInput = () => {
+      // Create a new file input specifically for camera capture
+      const cameraInput = document.createElement('input');
+      cameraInput.type = 'file';
+      cameraInput.accept = 'image/*';
+      cameraInput.capture = 'environment';
+      cameraInput.style.display = 'none';
+      cameraInput.onchange = (e) => {
+        const event = e as unknown as React.ChangeEvent<HTMLInputElement>;
+        handleFileChange(event);
+      };
+      document.body.appendChild(cameraInput);
+      cameraInput.click();
+      document.body.removeChild(cameraInput);
+    };
+
     return (
-      <div className="min-h-screen bg-black relative">
-        {/* Camera Viewfinder */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/50">
-          <div className="flex items-center justify-center h-full">
-            <div className="relative">
-              {/* Viewfinder Frame */}
-              <div className="w-80 h-96 border-2 border-white/50 rounded-3xl relative">
-                <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-white rounded-tl-lg"></div>
-                <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-white rounded-tr-lg"></div>
-                <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-white rounded-bl-lg"></div>
-                <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-white rounded-br-lg"></div>
-
-                {/* Center crosshair */}
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                  <div className="w-8 h-8 border border-white/70 rounded-full flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Helper Text */}
-              <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2 text-center">
-                <p className="text-white/80 text-sm">
-                  Position menu within frame
-                </p>
-                <p className="text-white/60 text-xs mt-1">
-                  Ensure good lighting for best results
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Top Bar */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">
+        {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-20 p-6">
           <div className="flex items-center justify-between">
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setCurrentScreen("welcome")}
-              className="text-white hover:bg-white/20"
+              className="text-white hover:bg-white/20 rounded-full"
             >
-              Cancel
+              ← Back
             </Button>
-            <div className="flex items-center gap-2 bg-black/30 backdrop-blur-lg rounded-full px-4 py-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-white text-sm">Ready</span>
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-lg rounded-full px-4 py-2">
+              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+              <span className="text-white text-sm font-medium">Ready to Capture</span>
             </div>
           </div>
         </div>
 
-        {/* Bottom Controls */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 p-6">
-          <div className="flex items-center justify-center gap-8">
-            {/* Gallery Button (Upload) */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-lg text-white hover:bg-white/30"
-              onClick={triggerFileInput}
-            >
-              <Upload className="w-5 h-5" />
-            </Button>
-
-            {/* Capture Button (Camera) */}
-            <Button
-              className="w-20 h-20 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-lg"
-              onClick={triggerFileInput}
-            >
-              <Camera className="w-10 h-10" />
-            </Button>
-
-            {/* Flash Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-lg text-white hover:bg-white/30"
-            >
-              <Sparkles className="w-5 h-5" />
-            </Button>
+        {/* Main Content */}
+        <div className="flex flex-col items-center justify-center min-h-screen p-6 pt-24 pb-32">
+          {/* Icon */}
+          <div className="mb-8">
+            <div className="w-24 h-24 bg-white/10 backdrop-blur-lg rounded-3xl flex items-center justify-center mb-4">
+              <Camera className="w-12 h-12 text-white" />
+            </div>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          {cameraError && (
-            <div className="text-red-500 text-center mt-2">{cameraError}</div>
-          )}
-          {/* Tips */}
-          <div className="mt-6 text-center">
-            <p className="text-white/70 text-xs">
-              💡 Tip: Hold steady and ensure menu text is clearly visible
+
+          {/* Title */}
+          <div className="text-center mb-12">
+            <h1 className="text-3xl font-bold text-white mb-4">
+              Capture Your Menu
+            </h1>
+            <p className="text-lg text-white/80 leading-relaxed max-w-md">
+              Take a photo or upload an image of any menu to get instant translations and dish insights
             </p>
           </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-4 w-full max-w-sm">
+            {/* Primary Action - Camera */}
+            <Button
+              onClick={triggerCameraInput}
+              className="w-full h-16 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl text-lg font-semibold shadow-xl flex items-center justify-center gap-3"
+            >
+              <Camera className="w-6 h-6" />
+              Take Photo
+            </Button>
+
+            {/* Secondary Action - Upload */}
+            <Button
+              onClick={triggerFileInput}
+              variant="outline"
+              className="w-full h-14 border-2 border-white/30 text-white hover:bg-white/10 rounded-2xl text-lg font-medium flex items-center justify-center gap-3"
+            >
+              <Upload className="w-5 h-5" />
+              Upload from Gallery
+            </Button>
+          </div>
+
+          {/* Error Display */}
+          {cameraError && (
+            <div className="mt-6 p-4 bg-red-500/20 border border-red-500/30 rounded-xl text-red-300 text-center max-w-sm">
+              {cameraError}
+            </div>
+          )}
+
+          {/* Tips */}
+          <div className="mt-8 text-center">
+            <p className="text-white/60 text-sm mb-2">
+              💡 <strong>Pro tips:</strong>
+            </p>
+            <ul className="text-white/50 text-xs space-y-1 max-w-sm">
+              <li>• Ensure good lighting for best results</li>
+              <li>• Hold your device steady</li>
+              <li>• Include the entire menu section you want translated</li>
+              <li>• Avoid shadows and reflections</li>
+            </ul>
+          </div>
         </div>
+
+        {/* Hidden file input for gallery upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
       </div>
     );
   }

@@ -113,13 +113,6 @@ export function SearchAndFilters({
 
         {/* Filter Actions */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Loading Indicator */}
-          {isLoading && (
-            <div className="p-2">
-              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-            </div>
-          )}
-
           {/* Clear Filters */}
           {filterStats.hasActiveFilters && (
             <Button
@@ -132,56 +125,16 @@ export function SearchAndFilters({
               Clear
             </Button>
           )}
-
-          {/* More Filters Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onFilterClick}
-            className={`rounded-xl h-9 px-4 touch-manipulation transition-all ${
-              filterStats.activeFilters > 0
-                ? "border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                : "border-gray-300 hover:bg-gray-50"
-            }`}
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Filters
-            {filterStats.activeFilters > 0 && (
-              <Badge 
-                variant="secondary" 
-                className="ml-2 h-5 w-5 p-0 flex items-center justify-center text-xs bg-orange-200 text-orange-800 rounded-full"
-              >
-                {filterStats.activeFilters}
-              </Badge>
-            )}
-          </Button>
         </div>
       </div>
 
-      {/* Results Summary */}
-      <div className="flex items-center justify-between text-sm text-gray-600">
-        <div className="flex items-center gap-2">
-          <span>
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin inline mr-1" />
-                Filtering...
-              </>
-            ) : (
-              <>
-                {filterStats.filtered} of {filterStats.total} dishes
-                {filterStats.hasActiveFilters && " match your preferences"}
-              </>
-            )}
-          </span>
+      {/* Loading indicator only when filtering */}
+      {isLoading && (
+        <div className="flex items-center justify-center text-sm text-gray-600 py-1">
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+          Filtering...
         </div>
-        
-        {filterStats.hasActiveFilters && !isLoading && (
-          <span className="text-xs text-gray-500">
-            {filterStats.activeFilters} filter{filterStats.activeFilters !== 1 ? "s" : ""} active
-          </span>
-        )}
-      </div>
+      )}
     </div>
   );
 }

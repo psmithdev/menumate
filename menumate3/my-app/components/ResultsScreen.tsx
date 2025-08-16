@@ -84,23 +84,41 @@ export function ResultsScreen({
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-xl font-bold text-gray-900">
-                Menu Discovered
+                Your Menu
               </h1>
-              <div className="text-xs text-gray-600 mt-0.5">
-                {isLoading ? "Filtering..." : `${filterStats.filtered} dishes`}
-                {filterStats.filtered !== filterStats.total && ` of ${filterStats.total}`}
-              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onShareClick}
-              className="rounded-lg h-8 px-3 text-xs"
-              disabled={filteredDishes.length === 0}
-            >
-              <Share2 className="w-3 h-3 mr-1" />
-              Share
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onFiltersClick}
+                className={`rounded-lg h-8 px-3 text-xs ${
+                  filterStats.activeFilters > 0
+                    ? "border-orange-300 bg-orange-50 text-orange-700"
+                    : ""
+                }`}
+              >
+                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z" />
+                </svg>
+                Filters
+                {filterStats.activeFilters > 0 && (
+                  <span className="ml-1 bg-orange-200 text-orange-800 rounded-full text-xs px-1.5 py-0.5 min-w-[18px] h-4 flex items-center justify-center">
+                    {filterStats.activeFilters}
+                  </span>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onShareClick}
+                className="rounded-lg h-8 px-3 text-xs"
+                disabled={filteredDishes.length === 0}
+              >
+                <Share2 className="w-3 h-3 mr-1" />
+                Share
+              </Button>
+            </div>
           </div>
 
           {/* Search and Filters */}

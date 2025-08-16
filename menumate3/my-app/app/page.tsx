@@ -170,7 +170,7 @@ export default function MenuTranslatorDesign() {
   const {
     filteredDishes: tempFilteredDishes,
     filters: currentFilters,
-    isLoading: filtersLoading
+    filterStats
   } = useDishFilters(parsedDishes);
 
 
@@ -1595,7 +1595,7 @@ export default function MenuTranslatorDesign() {
       <FiltersScreen
         filters={tempFilters}
         filteredCount={tempFilteredDishes.length}
-        isLoading={filtersLoading}
+        isLoading={false}
         onFiltersChange={setTempFilters}
         onApply={() => {
           // In a real implementation, this would update the main filters

@@ -101,8 +101,8 @@ export function DishGrid({
   // Regular grid rendering (default)
   if (!enableVirtualScrolling) {
     return (
-      <div className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+      <div className="px-4 pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {dishes.map((dish) => (
             <div key={dish.id} className="relative">
               <DishCard
@@ -131,7 +131,7 @@ export function DishGrid({
       {offsetY > 0 && <div style={{ height: offsetY }} />}
       
       {/* Visible items */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {visibleDishes.map((dish) => (
           <div key={dish.id} className="relative">
             <DishCard

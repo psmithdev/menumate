@@ -80,29 +80,27 @@ export function ResultsScreen({
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="sticky top-0 bg-white/95 backdrop-blur-lg border-b border-gray-200 z-20 shadow-sm">
-        <div className="p-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-xl font-bold text-gray-900">
                 Menu Discovered
               </h1>
-              <div className="text-sm text-gray-600 mt-1">
-                {isLoading ? "Filtering..." : `${filterStats.filtered} dishes available`}
-                {filterStats.filtered !== filterStats.total && ` (${filterStats.total} total)`}
+              <div className="text-xs text-gray-600 mt-0.5">
+                {isLoading ? "Filtering..." : `${filterStats.filtered} dishes`}
+                {filterStats.filtered !== filterStats.total && ` of ${filterStats.total}`}
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onShareClick}
-                className="rounded-xl h-9 px-4 touch-manipulation"
-                disabled={filteredDishes.length === 0}
-              >
-                <Share2 className="w-4 h-4 mr-2" />
-                Share
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onShareClick}
+              className="rounded-lg h-8 px-3 text-xs"
+              disabled={filteredDishes.length === 0}
+            >
+              <Share2 className="w-3 h-3 mr-1" />
+              Share
+            </Button>
           </div>
 
           {/* Search and Filters */}

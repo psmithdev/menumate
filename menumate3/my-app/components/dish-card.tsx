@@ -4,7 +4,8 @@ import { Star, Clock } from "lucide-react";
 import Image from "next/image";
 import { useCart } from "./CartContext";
 import type { ParsedDish } from "../types/menu";
-import { getDishImage } from "../utils/dishImage";
+import { getDishImage, getLocalFallbackImage } from "../utils/dishImage";
+import { useState } from "react";
 
 interface DishCardProps {
   dish: ParsedDish & {
@@ -19,6 +20,8 @@ interface DishCardProps {
 
 export function DishCard({ dish, onClick }: DishCardProps) {
   const { addToCart } = useCart();
+  const [imageError, setImageError] = useState(0); // 0: external, 1: local fallback, 2: final fallback
+  const [isLoading, setIsLoading] = useState(true);
   
   // Get only the most important dietary badges (max 2)
   const getDietaryBadges = () => {
@@ -29,15 +32,45 @@ export function DishCard({ dish, onClick }: DishCardProps) {
     return badges.slice(0, 2);
   };
 
+  const getImageSrc = () => {
+    if (imageError === 0) {
+      return getDishImage(dish);
+    } else if (imageError === 1) {
+      return getLocalFallbackImage(dish);
+    } else {
+      return "/placeholder.svg";
+    }
+  };
+
+  const handleImageError = () => {
+    setImageError(prev => prev + 1);
+    setIsLoading(false);
+  };
+
+  const handleImageLoad = () => {
+    setIsLoading(false);
+  };
+
   return (
     <Card className="overflow-hidden cursor-pointer hover:shadow-md transition-all duration-200 border-0 shadow-sm" onClick={onClick}>
       <div className="relative">
+        {/* Loading state for card images */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-gray-100 animate-pulse flex items-center justify-center z-10">
+            <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+        
         <Image
-          src={getDishImage(dish)}
+          src={getImageSrc()}
           alt={dish.translatedName || dish.originalName}
           width={400}
           height={96}
-          className="w-full h-24 object-cover"
+          className={`w-full h-24 object-cover transition-opacity duration-300 ${
+            isLoading ? 'opacity-0' : 'opacity-100'
+          }`}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
         />
         <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 text-sm font-semibold">
           {dish.translatedPrice || dish.originalPrice}

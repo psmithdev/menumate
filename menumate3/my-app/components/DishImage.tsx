@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import type { ParsedDish } from "@/types/menu";
-import { getDishImage } from "@/utils/dishImage";
+import { getDishImage, getLocalFallbackImage } from "@/utils/dishImage";
 
 interface DishImageProps {
   dish: ParsedDish;
@@ -13,20 +13,47 @@ interface DishImageProps {
 }
 
 export function DishImage({ dish, className = "", priority = false, showPrice = true }: DishImageProps) {
-  const [imageError, setImageError] = useState(false);
+  const [imageError, setImageError] = useState(0); // 0: external, 1: local fallback, 2: final fallback
+  const [isLoading, setIsLoading] = useState(true);
   
-  const imageSrc = getDishImage(dish);
-  const fallbackSrc = "/placeholder.svg";
+  const getImageSrc = () => {
+    if (imageError === 0) {
+      return getDishImage(dish);
+    } else if (imageError === 1) {
+      return getLocalFallbackImage(dish);
+    } else {
+      return "/placeholder.svg";
+    }
+  };
+  
+  const handleImageError = () => {
+    setImageError(prev => prev + 1);
+    setIsLoading(false);
+  };
+  
+  const handleImageLoad = () => {
+    setIsLoading(false);
+  };
   
   return (
     <div className={`relative overflow-hidden ${className}`}>
+      {/* Loading state */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-gray-100 animate-pulse flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      )}
+      
       <Image
-        src={imageError ? fallbackSrc : imageSrc}
+        src={getImageSrc()}
         alt={dish.translatedName || dish.originalName}
         fill
-        className="object-cover transition-transform duration-300 hover:scale-105"
+        className={`object-cover transition-all duration-300 hover:scale-105 ${
+          isLoading ? 'opacity-0' : 'opacity-100'
+        }`}
         priority={priority}
-        onError={() => setImageError(true)}
+        onError={handleImageError}
+        onLoad={handleImageLoad}
         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
       />
       

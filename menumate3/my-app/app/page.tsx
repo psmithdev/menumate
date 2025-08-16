@@ -1224,12 +1224,19 @@ export default function MenuTranslatorDesign() {
   }
 
   if (currentScreen === "results") {
+    // Extract restaurant name from the first dish that has restaurant info
+    const dishWithRestaurant = parsedDishes.find(dish => 
+      (dish as any).restaurantInfo?.name
+    ) as any;
+    const restaurantName = dishWithRestaurant?.restaurantInfo?.name;
+
     return (
       <ResultsScreen
         parsedDishes={parsedDishes}
         ocrText={ocrText}
         translatedText={translatedText}
         detectedLanguage={detectedLanguage}
+        restaurantName={restaurantName}
         onDishClick={(dish) => {
           setSelectedDish(dish);
           setCurrentScreen("dish-detail");

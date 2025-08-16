@@ -17,6 +17,7 @@ interface ResultsScreenProps {
   ocrText: string | null;
   translatedText: string | null;
   detectedLanguage: string;
+  restaurantName?: string;
   onDishClick: (dish: ParsedDish) => void;
   onFiltersClick: () => void;
   onShareClick: () => void;
@@ -30,6 +31,7 @@ export function ResultsScreen({
   ocrText,
   translatedText,
   detectedLanguage,
+  restaurantName,
   onDishClick,
   onFiltersClick,
   onShareClick,
@@ -40,7 +42,6 @@ export function ResultsScreen({
   const {
     filteredDishes,
     filters,
-    isLoading,
     filterStats,
     updateDietaryFilter,
     updatePriceRange,
@@ -54,18 +55,23 @@ export function ResultsScreen({
   // const { toggleBookmark, isBookmarked } = useBookmarks();
 
   // Handle quick filter toggles
-  const handleFilterToggle = (filterType: 'vegetarian' | 'spicy' | 'budget' | 'quick') => {
+  const handleFilterToggle = (
+    filterType: "vegetarian" | "spicy" | "budget" | "quick"
+  ) => {
     switch (filterType) {
-      case 'vegetarian':
-        updateDietaryFilter('vegetarian', !filters.dietary.vegetarian);
+      case "vegetarian":
+        updateDietaryFilter("vegetarian", !filters.dietary.vegetarian);
         break;
-      case 'spicy':
+      case "spicy":
         updateSpiceLevel(filters.maxSpiceLevel < 4 ? 4 : 2);
         break;
-      case 'budget':
-        updatePriceRange(filters.priceRange.min, filters.priceRange.max <= 20 ? 50 : 20);
+      case "budget":
+        updatePriceRange(
+          filters.priceRange.min,
+          filters.priceRange.max <= 20 ? 50 : 20
+        );
         break;
-      case 'quick':
+      case "quick":
         updateSortBy(filters.sortBy === "time" ? "recommended" : "time");
         break;
     }
@@ -82,10 +88,22 @@ export function ResultsScreen({
       <div className="sticky top-0 bg-white/95 backdrop-blur-lg border-b border-gray-200 z-20 shadow-sm">
         <div className="px-4 py-3">
           <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
-                Your Menu
-              </h1>
+            <div className="flex-1 min-w-0 mr-4">
+              {restaurantName && restaurantName.trim() ? (
+                <h1 className="text-xl font-bold text-gray-900 truncate">
+                  {restaurantName}
+                </h1>
+              ) : (
+                <div className="flex items-center">
+                  <img
+                    src="/menumate-logo.svg"
+                    alt="MenuMate"
+                    width={140}
+                    height={28}
+                    className="h-7 w-auto"
+                  />
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
@@ -98,8 +116,18 @@ export function ResultsScreen({
                     : ""
                 }`}
               >
-                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z" />
+                <svg
+                  className="w-3 h-3 mr-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"
+                  />
                 </svg>
                 Filters
                 {filterStats.activeFilters > 0 && (
@@ -124,7 +152,7 @@ export function ResultsScreen({
           {/* Search and Filters */}
           <SearchAndFilters
             filters={filters}
-            isLoading={isLoading}
+            isLoading={false}
             filterStats={filterStats}
             onSearchChange={updateSearchQuery}
             onFilterToggle={handleFilterToggle}
@@ -165,7 +193,7 @@ export function ResultsScreen({
         <div className="relative">
           <CartButton />
         </div>
-        
+
         {/* New Photo Button */}
         <FloatingActionButton
           icon={Camera}

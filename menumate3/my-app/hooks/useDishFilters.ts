@@ -53,7 +53,6 @@ export const defaultFilters: DishFilters = {
 
 export function useDishFilters(dishes: ParsedDish[]) {
   const [filters, setFilters] = useState<DishFilters>(defaultFilters);
-  const [isLoading, setIsLoading] = useState(false);
 
   // Enhanced function to extract price number from price string with multiple currency support
   const extractPriceNumber = useCallback((priceString: string): number => {
@@ -95,8 +94,6 @@ export function useDishFilters(dishes: ParsedDish[]) {
   // Function to filter and sort dishes based on current filters
   const applyFilters = useCallback(
     (dishesToFilter: ParsedDish[]): ParsedDish[] => {
-      setIsLoading(true);
-
       const filteredDishes = dishesToFilter.filter((dish) => {
         // Search query filter
         if (filters.searchQuery.trim()) {
@@ -187,9 +184,6 @@ export function useDishFilters(dishes: ParsedDish[]) {
         }
       });
 
-      // Simulate some processing time for loading state
-      setTimeout(() => setIsLoading(false), 100);
-
       return sortedDishes;
     },
     [filters, extractPriceNumber]
@@ -260,7 +254,6 @@ export function useDishFilters(dishes: ParsedDish[]) {
   return {
     filters,
     filteredDishes,
-    isLoading,
     filterStats,
     setFilters,
     updateDietaryFilter,

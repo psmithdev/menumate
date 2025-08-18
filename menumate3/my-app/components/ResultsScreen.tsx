@@ -95,13 +95,9 @@ export function ResultsScreen({
                 </h1>
               ) : (
                 <div className="flex items-center">
-                  <img
-                    src="/menumate-logo.svg"
-                    alt="MenuMate"
-                    width={140}
-                    height={28}
-                    className="h-7 w-auto"
-                  />
+                  <span className="text-xl font-bold bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
+                    MenuMate
+                  </span>
                 </div>
               )}
             </div>

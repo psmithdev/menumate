@@ -20,24 +20,24 @@ export function getDishImage(dish: ParsedDish): string {
   // Create a deterministic seed from dish name for consistent images
   const seed = hashCode(dish.originalName) % 1000;
   
-  // Use Picsum for reliable placeholder images with food-related IDs
-  // Picsum has specific photo IDs that are food-related and always available
+  // Use Picsum for reliable placeholder images with actual food-related IDs
+  // These IDs have been verified to show actual food and beverage images
   const foodImageIds = {
-    chicken: [60, 431, 660, 675, 691, 718],
-    beef: [60, 431, 675, 718, 835],
-    pork: [60, 431, 675, 718],
-    seafood: [60, 431, 675, 718, 835],
-    pasta: [60, 431, 675, 718],
-    pizza: [60, 431, 675, 718, 835],
-    salad: [60, 431, 675, 718],
-    soup: [60, 431, 675, 718],
-    rice: [60, 431, 675, 718, 835],
-    tofu: [60, 431, 675, 718],
-    curry: [60, 431, 675, 718, 835],
-    vegetarian: [60, 431, 675, 718],
-    dessert: [60, 431, 675, 718, 835],
-    thai: [60, 431, 675, 718, 835],
-    default: [60, 431, 675, 718, 835, 292, 312, 326, 342, 365]
+    chicken: [292, 312, 326, 365, 429, 431], // vegetables, honey, soup, tea, berries, coffee
+    beef: [292, 312, 326, 365, 429, 431],
+    pork: [292, 312, 326, 365, 429, 431],
+    seafood: [292, 312, 326, 365, 429, 431],
+    pasta: [292, 312, 326, 365, 429, 431],
+    pizza: [292, 312, 326, 365, 429, 431],
+    salad: [292, 326, 365, 429, 431, 312], // prioritize vegetables for salads
+    soup: [326, 312, 365, 292, 429, 431], // prioritize soup image
+    rice: [292, 312, 326, 365, 429, 431],
+    tofu: [292, 326, 365, 312, 429, 431], // prioritize vegetables for tofu
+    curry: [326, 312, 292, 365, 429, 431], // prioritize soup-like images
+    vegetarian: [292, 429, 326, 312, 365, 431], // prioritize vegetables and berries
+    dessert: [429, 312, 365, 431, 326, 292], // prioritize berries and sweet items
+    thai: [292, 312, 326, 365, 429, 431],
+    default: [292, 312, 326, 365, 429, 431] // all verified food images
   };
 
   let category = 'default';

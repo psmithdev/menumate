@@ -33,6 +33,8 @@ import { NutritionInfo } from "@/components/NutritionInfo";
 import { DishActionButtons } from "@/components/DishActionButtons";
 import { SimilarDishes } from "@/components/SimilarDishes";
 import { enhanceDishWithOCR } from "@/utils/enhancedDishParser";
+import { getRandomFoodTip } from "@/utils/foodTips";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Screen =
   | "welcome"
@@ -156,6 +158,8 @@ export default function MenuTranslatorDesign() {
   } | null>(null);
   const [previewText, setPreviewText] = useState<string>('');
   const [previewDishes, setPreviewDishes] = useState<ParsedDish[]>([]);
+  const [currentFoodTip, setCurrentFoodTip] = useState<string>("");
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -547,6 +551,36 @@ export default function MenuTranslatorDesign() {
       setShowCamera(false);
     }
   }, [currentScreen, cameraStream]);
+
+  // Handle rotating food tips during processing
+  useEffect(() => {
+    if (currentScreen === "processing" && isProcessing) {
+      // Set initial tip
+      setCurrentFoodTip(getRandomFoodTip());
+      
+      // Rotate tips every 3 seconds
+      const tipInterval = setInterval(() => {
+        setCurrentFoodTip(getRandomFoodTip());
+      }, 3000);
+      
+      return () => clearInterval(tipInterval);
+    }
+  }, [currentScreen, isProcessing]);
+
+  // Handle estimated time remaining updates
+  useEffect(() => {
+    if (currentScreen === "processing" && isProcessing) {
+      const timeInterval = setInterval(() => {
+        const estimated = Math.max(0, estimatedTimeRemaining - 1);
+        setEstimatedTimeRemaining(estimated);
+      }, 1000);
+      
+      return () => clearInterval(timeInterval);
+    }
+  }, [currentScreen, isProcessing, estimatedTimeRemaining]);
+
+  // Handle confidence checking for retake prompt
+  // Note: Confidence prompt is now handled inline in the processing screen
 
 
   if (currentScreen === "welcome") {
@@ -1054,170 +1088,437 @@ export default function MenuTranslatorDesign() {
       { icon: CheckCircle, label: 'Finalizing results', detail: processingStats?.confidence ? `${Math.round(processingStats.confidence * 100)}% confidence` : null }
     ];
 
+    // Calculate estimated time remaining
+    const getEstimatedTime = () => {
+      if (processingProgress < 25) return 8;
+      if (processingProgress < 50) return 6;
+      if (processingProgress < 75) return 3;
+      if (processingProgress < 95) return 1;
+      return 0;
+    };
+
+    // Check if confidence is low and should show retake prompt
+    const shouldShowRetakePrompt = processingStats?.confidence && processingStats.confidence < 0.9 && processingProgress > 80;
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-6">
-        <div className="text-center text-white max-w-md">
-          {/* Animated Logo */}
+      <div className="min-h-screen bg-gradient-to-br from-orange-400 via-red-400 to-pink-500 flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Animated background elements */}
+        <div className="absolute inset-0 overflow-hidden">
+          <motion.div
+            className="absolute -top-10 -left-10 w-32 h-32 bg-white/10 rounded-full"
+            animate={{
+              y: [0, 50, 0],
+              x: [0, 30, 0],
+              scale: [1, 1.1, 1]
+            }}
+            transition={{
+              duration: 6,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+          <motion.div
+            className="absolute top-40 -right-10 w-24 h-24 bg-yellow-300/20 rounded-full"
+            animate={{
+              y: [0, -40, 0],
+              x: [0, -20, 0],
+              rotate: [0, 180, 360]
+            }}
+            transition={{
+              duration: 8,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+          <motion.div
+            className="absolute bottom-32 left-20 w-40 h-40 bg-white/5 rounded-full"
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: [0.3, 0.7, 0.3]
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+          />
+        </div>
+
+        <div className="text-center text-white max-w-md relative z-10">
+          {/* Animated Chef Cooking Animation */}
           <div className="mb-8">
-            <div className="w-24 h-24 bg-white/10 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto mb-6 animate-pulse">
-              <ChefHat className="w-12 h-12 text-white" />
+            <div className="relative w-32 h-32 mx-auto mb-6">
+              <motion.div
+                className="w-24 h-24 bg-white/20 backdrop-blur-lg rounded-3xl flex items-center justify-center mx-auto"
+                animate={{
+                  rotate: [0, 5, -5, 0],
+                  scale: [1, 1.05, 1]
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              >
+                <ChefHat className="w-12 h-12 text-white" />
+              </motion.div>
+              
+              {/* Flying dishes animation */}
+              <AnimatePresence>
+                {isProcessing && (
+                  <>
+                    <motion.div
+                      className="absolute -top-2 -right-2 text-2xl"
+                      initial={{ opacity: 0, scale: 0.5, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.5, y: -20 }}
+                      transition={{ duration: 0.5, delay: 0.5 }}
+                    >
+                      🍜
+                    </motion.div>
+                    <motion.div
+                      className="absolute -bottom-2 -left-2 text-2xl"
+                      initial={{ opacity: 0, scale: 0.5, x: -20 }}
+                      animate={{ opacity: 1, scale: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.5, x: 20 }}
+                      transition={{ duration: 0.5, delay: 1 }}
+                    >
+                      🍛
+                    </motion.div>
+                    <motion.div
+                      className="absolute top-0 -left-4 text-xl"
+                      initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                      exit={{ opacity: 0, scale: 0.5, rotate: 45 }}
+                      transition={{ duration: 0.5, delay: 1.5 }}
+                    >
+                      🥘
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
             </div>
 
-            {/* Processing Animation */}
+            {/* Cooking animation with sparkles */}
             {isProcessing && (
-              <div className="flex justify-center gap-2 mb-6">
-                <div
-                  className="w-3 h-3 bg-white rounded-full animate-bounce"
-                  style={{ animationDelay: "0ms" }}
-                ></div>
-                <div
-                  className="w-3 h-3 bg-white rounded-full animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                ></div>
-                <div
-                  className="w-3 h-3 bg-white rounded-full animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                ></div>
-              </div>
+              <motion.div
+                className="flex justify-center gap-1 mb-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+              >
+                <motion.div
+                  className="text-yellow-300 text-lg"
+                  animate={{ opacity: [0.5, 1, 0.5], y: [0, -5, 0] }}
+                  transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                >
+                  ✨
+                </motion.div>
+                <motion.div
+                  className="text-yellow-300 text-lg"
+                  animate={{ opacity: [0.5, 1, 0.5], y: [0, -5, 0] }}
+                  transition={{ duration: 1, repeat: Infinity, delay: 0.3 }}
+                >
+                  ✨
+                </motion.div>
+                <motion.div
+                  className="text-yellow-300 text-lg"
+                  animate={{ opacity: [0.5, 1, 0.5], y: [0, -5, 0] }}
+                  transition={{ duration: 1, repeat: Infinity, delay: 0.6 }}
+                >
+                  ✨
+                </motion.div>
+              </motion.div>
             )}
           </div>
 
-          {/* Processing Steps */}
-          <div className="space-y-4 mb-8">
-            <h2 className="text-2xl font-bold mb-2">Analyzing Your Menu</h2>
-            <div className="text-lg font-medium mb-6">
-              {processingProgress}% • {currentProcessingStep}
+          {/* Enhanced Header with Time Estimate */}
+          <motion.div
+            className="space-y-4 mb-8"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <h2 className="text-3xl font-bold mb-2">🍳 Cooking Up Your Menu</h2>
+            <div className="text-lg font-medium mb-2">
+              {processingProgress}% Complete
             </div>
+            <div className="text-sm text-white/80 mb-4">
+              {getEstimatedTime() > 0 ? `~${getEstimatedTime()}s remaining` : "Almost ready!"}
+            </div>
+          </motion.div>
 
+          {/* Rotating Food Tips */}
+          <motion.div
+            className="bg-white/20 backdrop-blur-lg rounded-2xl p-4 mb-6 min-h-[80px] flex items-center justify-center"
+            key={currentFoodTip}
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="text-center">
+              <div className="text-sm text-white/70 mb-2">💡 Did you know?</div>
+              <p className="text-white font-medium leading-relaxed">
+                {currentFoodTip || getRandomFoodTip()}
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Processing Steps with Enhanced Animation */}
+          <motion.div
+            className="space-y-3 mb-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
             {processingSteps.map((step, index) => {
               const status = getStepStatus(index);
               const StepIcon = step.icon;
               
               return (
-                <div key={index} className={`flex items-center gap-4 p-4 backdrop-blur-lg rounded-2xl transition-all duration-500 ${
-                  status === 'completed' ? 'bg-green-500/20 border border-green-500/30' :
-                  status === 'active' ? 'bg-blue-500/20 border border-blue-500/30' :
-                  'bg-white/5 border border-white/10'
-                }`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    status === 'completed' ? 'bg-green-500' :
-                    status === 'active' ? 'bg-blue-500 animate-pulse' :
-                    'bg-gray-500'
-                  }`}>
+                <motion.div
+                  key={index}
+                  className={`flex items-center gap-4 p-3 backdrop-blur-lg rounded-xl transition-all duration-500 ${
+                    status === 'completed' ? 'bg-green-500/30 border border-green-400/50' :
+                    status === 'active' ? 'bg-blue-500/30 border border-blue-400/50' :
+                    'bg-white/10 border border-white/20'
+                  }`}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <motion.div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                      status === 'completed' ? 'bg-green-500' :
+                      status === 'active' ? 'bg-blue-500' :
+                      'bg-gray-500'
+                    }`}
+                    animate={status === 'active' ? { scale: [1, 1.1, 1] } : {}}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
                     {status === 'completed' ? (
-                      <span className="text-sm font-bold">✓</span>
+                      <motion.span
+                        className="text-sm font-bold"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 200 }}
+                      >
+                        ✓
+                      </motion.span>
                     ) : status === 'active' ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <motion.div
+                        className="w-4 h-4 border-2 border-white border-t-transparent rounded-full"
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      />
                     ) : (
                       <StepIcon className="w-4 h-4" />
                     )}
-                  </div>
+                  </motion.div>
                   <div className="flex-1 text-left">
-                    <div className="font-medium">{step.label}</div>
+                    <div className="font-medium text-sm">{step.label}</div>
                     {step.detail && (
-                      <div className="text-sm text-white/70 mt-1">{step.detail}</div>
+                      <div className="text-xs text-white/70 mt-1">{step.detail}</div>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
+          </motion.div>
+
+          {/* Enhanced Progress Bar */}
+          <div className="w-full bg-white/20 rounded-full h-4 mb-6 overflow-hidden backdrop-blur-sm">
+            <motion.div
+              className="bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 h-4 rounded-full shadow-lg"
+              initial={{ width: 0 }}
+              animate={{ width: `${processingProgress}%` }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+            >
+              <motion.div
+                className="h-full bg-white/30 rounded-full"
+                animate={{ x: [-20, 100, -20] }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                style={{ width: "20px" }}
+              />
+            </motion.div>
           </div>
 
-          {/* Progress Bar */}
-          <div className="w-full bg-white/20 rounded-full h-3 mb-6 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-blue-400 to-purple-400 h-3 rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${processingProgress}%` }}
-            ></div>
-          </div>
-
-          {/* Live Stats */}
+          {/* Live Stats Grid */}
           {processingStats && (
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <motion.div
+              className="grid grid-cols-2 gap-3 mb-6"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
               {processingStats.imageSize && (
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
+                <motion.div
+                  className="bg-white/20 backdrop-blur-lg rounded-xl p-3"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                >
                   <div className="text-xs text-white/60">Image Size</div>
                   <div className="font-bold">{processingStats.imageSize}</div>
-                </div>
+                </motion.div>
               )}
               {processingStats.ocrTime > 0 && (
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
-                  <div className="text-xs text-white/60">OCR Time</div>
+                <motion.div
+                  className="bg-white/20 backdrop-blur-lg rounded-xl p-3"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                >
+                  <div className="text-xs text-white/60">Processing Time</div>
                   <div className="font-bold">{(processingStats.ocrTime / 1000).toFixed(1)}s</div>
-                </div>
+                </motion.div>
               )}
               {processingStats.dishesFound > 0 && (
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
+                <motion.div
+                  className="bg-white/20 backdrop-blur-lg rounded-xl p-3"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                >
                   <div className="text-xs text-white/60">Dishes Found</div>
                   <div className="font-bold">{processingStats.dishesFound}</div>
-                </div>
+                </motion.div>
               )}
               {processingStats.confidence > 0 && (
-                <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
+                <motion.div
+                  className={`backdrop-blur-lg rounded-xl p-3 ${
+                    processingStats.confidence < 0.9 ? 'bg-yellow-500/30 border border-yellow-400/50' : 'bg-white/20'
+                  }`}
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ type: "spring", stiffness: 200 }}
+                >
                   <div className="text-xs text-white/60">Confidence</div>
                   <div className="font-bold">{Math.round(processingStats.confidence * 100)}%</div>
-                </div>
+                </motion.div>
               )}
-            </div>
+            </motion.div>
           )}
 
-          {processingError && (
-            <div className="bg-red-500/20 border border-red-500/30 rounded-xl p-4 mb-4">
-              <div className="text-red-300 text-sm">{processingError}</div>
-            </div>
-          )}
-          
-          <p className="text-white/60 text-sm mb-6">
-            {processingProgress < 50 ? 'Analyzing your image...' :
-             processingProgress < 90 ? 'Processing menu data...' :
-             'Almost done!'}
-          </p>
-
-          {/* Streaming Preview */}
-          {(previewText || previewDishes.length > 0) && processingProgress > 40 && (
-            <div className="mt-6 bg-white/10 backdrop-blur-lg rounded-xl p-4">
-              <div className="text-sm text-white/80 mb-3 flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                Live Preview
-              </div>
-              
-              {previewDishes.length > 0 ? (
-                <div className="space-y-2 text-left">
-                  {previewDishes.map((dish) => (
-                    <div key={dish.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="font-medium text-sm">{dish.originalName}</div>
-                      <div className="text-xs text-white/60 mt-1">{dish.originalPrice}</div>
-                    </div>
-                  ))}
-                  {processingStats && processingStats.dishesFound > 3 && (
-                    <div className="text-xs text-white/50 text-center pt-2">
-                      +{processingStats.dishesFound - 3} more dishes...
-                    </div>
-                  )}
-                </div>
-              ) : previewText && (
-                <div className="text-left">
-                  <pre className="text-xs text-white/70 font-mono leading-relaxed whitespace-pre-wrap">
-                    {previewText}
-                    {previewText.split('\n').length >= 5 && '\n...'}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Skip button - only show after some progress */}
-          {processingProgress > 30 && (
-            <div className="mt-6">
-              <Button
-                onClick={() => setCurrentScreen("results")}
-                variant="ghost"
-                className="text-white/50 text-sm hover:text-white transition-colors"
+          {/* Low Confidence Retake Prompt */}
+          <AnimatePresence>
+            {shouldShowRetakePrompt && (
+              <motion.div
+                className="bg-yellow-500/30 border border-yellow-400/50 backdrop-blur-lg rounded-xl p-4 mb-4"
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                transition={{ type: "spring", stiffness: 200 }}
               >
-                Skip to results →
-              </Button>
-            </div>
-          )}
+                <div className="text-yellow-100 mb-3">
+                  <div className="font-semibold flex items-center gap-2">
+                    📸 Photo unclear — want to retake?
+                  </div>
+                  <div className="text-sm text-yellow-200 mt-1">
+                    Confidence is {Math.round((processingStats?.confidence || 0) * 100)}%. Better lighting might improve results.
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setCurrentScreen("camera")}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white text-sm px-4 py-2 rounded-lg"
+                  >
+                    📷 Retake Photo
+                  </Button>
+                  <Button
+                    onClick={() => {/* Dismiss handled by parent state */}}
+                    variant="ghost"
+                    className="text-yellow-100 hover:text-white text-sm"
+                  >
+                    Continue Anyway
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Error Display */}
+          <AnimatePresence>
+            {processingError && (
+              <motion.div
+                className="bg-red-500/30 border border-red-400/50 rounded-xl p-4 mb-4"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <div className="text-red-200 text-sm">{processingError}</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Live Preview with Enhanced Animation */}
+          <AnimatePresence>
+            {(previewText || previewDishes.length > 0) && processingProgress > 40 && (
+              <motion.div
+                className="mt-6 bg-white/20 backdrop-blur-lg rounded-xl p-4 border border-white/30"
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 200 }}
+              >
+                <div className="text-sm text-white/80 mb-3 flex items-center gap-2">
+                  <motion.div
+                    className="w-2 h-2 bg-green-400 rounded-full"
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  🔍 Live Preview
+                </div>
+                
+                {previewDishes.length > 0 ? (
+                  <div className="space-y-2 text-left">
+                    {previewDishes.map((dish, index) => (
+                      <motion.div
+                        key={dish.id}
+                        className="bg-white/10 rounded-lg p-3 border border-white/20"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <div className="font-medium text-sm">{dish.originalName}</div>
+                        <div className="text-xs text-white/60 mt-1">{dish.originalPrice}</div>
+                      </motion.div>
+                    ))}
+                    {processingStats && processingStats.dishesFound > 3 && (
+                      <div className="text-xs text-white/50 text-center pt-2">
+                        +{processingStats.dishesFound - 3} more dishes being analyzed...
+                      </div>
+                    )}
+                  </div>
+                ) : previewText && (
+                  <div className="text-left">
+                    <pre className="text-xs text-white/70 font-mono leading-relaxed whitespace-pre-wrap">
+                      {previewText}
+                      {previewText.split('\n').length >= 5 && '\n...'}
+                    </pre>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Skip button with animation */}
+          <AnimatePresence>
+            {processingProgress > 30 && (
+              <motion.div
+                className="mt-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ delay: 2 }}
+              >
+                <Button
+                  onClick={() => setCurrentScreen("results")}
+                  variant="ghost"
+                  className="text-white/60 text-sm hover:text-white hover:bg-white/10 transition-all duration-300 rounded-full px-6"
+                >
+                  Skip to results →
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     );

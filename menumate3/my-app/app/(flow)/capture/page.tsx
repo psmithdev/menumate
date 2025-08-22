@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Camera, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { analyzeImageQuality, preprocessImage } from "@/utils/imagePreprocessor";
+import { FlowStorage } from "@/utils/flowStorage";
+import { LoadingTransition } from "@/components/LoadingTransition";
+import { AnimatePresence } from "framer-motion";
 
 // Client-side image compression (only works in browser)
 function compressImage(
@@ -74,6 +77,14 @@ export default function CapturePage() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+
+  useEffect(() => {
+    // Preload data and reduce loading time
+    FlowStorage.preloadData();
+    setIsLoading(false);
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,6 +94,9 @@ export default function CapturePage() {
       setCameraError("Please select a valid image file.");
       return;
     }
+
+    setIsProcessingImage(true);
+    setCameraError(null);
 
     let finalFile = file;
     if (file.size > 8 * 1024 * 1024) {
@@ -94,13 +108,12 @@ export default function CapturePage() {
         console.error("Compression failed:", error);
         if (file.size > 15 * 1024 * 1024) {
           setCameraError("Image too large. Please select a smaller image.");
+          setIsProcessingImage(false);
           return;
         }
         finalFile = file;
       }
     }
-
-    setCameraError(null);
 
     try {
       const quality = await analyzeImageQuality(finalFile);
@@ -116,21 +129,28 @@ export default function CapturePage() {
         });
       }
 
-      // Store in sessionStorage and navigate
+      // Optimized storage and navigation
       const reader = new FileReader();
       reader.onload = () => {
-        sessionStorage.setItem("menuImage", reader.result as string);
-        router.push("/processing");
+        FlowStorage.setMenuImage(reader.result as string);
+        // Small delay to ensure storage is complete
+        setTimeout(() => {
+          router.push("/processing");
+        }, 50);
       };
       reader.readAsDataURL(processedFile);
     } catch (error) {
       console.error("Image preprocessing failed:", error);
       const reader = new FileReader();
       reader.onload = () => {
-        sessionStorage.setItem("menuImage", reader.result as string);
-        router.push("/processing");
+        FlowStorage.setMenuImage(reader.result as string);
+        setTimeout(() => {
+          router.push("/processing");
+        }, 50);
       };
       reader.readAsDataURL(finalFile);
+    } finally {
+      setIsProcessingImage(false);
     }
   };
 
@@ -308,8 +328,20 @@ export default function CapturePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">
-      {/* Header */}
+    <>
+      <AnimatePresence>
+        <LoadingTransition 
+          isLoading={isLoading} 
+          message="Loading camera..." 
+        />
+        <LoadingTransition 
+          isLoading={isProcessingImage} 
+          message="Processing image..." 
+        />
+      </AnimatePresence>
+      
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">
+        {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-20 p-6">
         <div className="flex items-center justify-between">
           <Button
@@ -452,6 +484,7 @@ export default function CapturePage() {
         className="hidden"
         onChange={handleFileChange}
       />
-    </div>
+      </div>
+    </>
   );
 }

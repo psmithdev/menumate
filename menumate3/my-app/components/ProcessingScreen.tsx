@@ -90,6 +90,7 @@ export function ProcessingScreen({ menuImage, onComplete, onRetakePhoto }: Proce
     if (menuImage) {
       performOcr();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuImage]);
 
   const performOcr = async () => {
@@ -148,7 +149,7 @@ export function ProcessingScreen({ menuImage, onComplete, onRetakePhoto }: Proce
         
         // Show preview of first few dishes
         const previewDishes = smartResult.dishes.slice(0, 3).map(
-          (dish: any, index: number) => ({
+          (dish: { name: string; price?: string; category?: string; spiceLevel?: number; isVegetarian?: boolean }, index: number) => ({
             id: `preview-dish-${index}`,
             originalName: dish.name,
             originalPrice: dish.price || "Price not detected",
@@ -174,7 +175,7 @@ export function ProcessingScreen({ menuImage, onComplete, onRetakePhoto }: Proce
         await new Promise(resolve => setTimeout(resolve, 800));
         
         // Convert smart result to ParsedDish format
-        const dishes = smartResult.dishes.map((dish: any, index: number) => ({
+        const dishes = smartResult.dishes.map((dish: { name: string; price?: string; category?: string; spiceLevel?: number; isVegetarian?: boolean }, index: number) => ({
           id: `smart-dish-${index}`,
           originalName: dish.name,
           originalPrice: dish.price || "Price not detected",

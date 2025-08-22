@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ResultsScreen } from "@/components/ResultsScreen";
 import { getLanguageName } from "@/utils/languages";
+import { FlowStorage } from "@/utils/flowStorage";
+import { LoadingTransition } from "@/components/LoadingTransition";
+import { AnimatePresence } from "framer-motion";
 
 type ParsedDish = {
   id: string;
@@ -35,35 +38,35 @@ export default function ResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Load data from sessionStorage
-    const dishesData = sessionStorage.getItem("parsedDishes");
-    const ocrTextData = sessionStorage.getItem("ocrText");
-    const translatedTextData = sessionStorage.getItem("translatedText");
-    const detectedLangData = sessionStorage.getItem("detectedLanguage");
-
-    if (dishesData) {
-      setParsedDishes(JSON.parse(dishesData));
+    // Load data from optimized storage
+    const flowData = FlowStorage.getFlowData();
+    
+    if (flowData.parsedDishes) {
+      const dishes = typeof flowData.parsedDishes === 'string' 
+        ? JSON.parse(flowData.parsedDishes) 
+        : flowData.parsedDishes;
+      setParsedDishes(dishes);
     }
-    if (ocrTextData) {
-      setOcrText(ocrTextData);
+    if (flowData.ocrText) {
+      setOcrText(flowData.ocrText);
     }
-    if (translatedTextData) {
-      setTranslatedText(translatedTextData);
+    if (flowData.translatedText) {
+      setTranslatedText(flowData.translatedText);
     }
-    if (detectedLangData) {
-      setDetectedLanguage(detectedLangData);
+    if (flowData.detectedLanguage) {
+      setDetectedLanguage(flowData.detectedLanguage);
     }
 
     setIsLoading(false);
 
     // If no data, redirect to welcome
-    if (!dishesData && !ocrTextData) {
+    if (!flowData.parsedDishes && !flowData.ocrText) {
       router.push("/welcome");
     }
   }, [router]);
 
   const handleDishClick = (dish: ParsedDish) => {
-    sessionStorage.setItem("selectedDish", JSON.stringify(dish));
+    FlowStorage.setSelectedDish(dish);
     router.push("/dish-detail");
   };
 
@@ -85,19 +88,17 @@ export default function ResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading results...</p>
-        </div>
-      </div>
+      <LoadingTransition 
+        isLoading={true} 
+        message="Loading results..." 
+      />
     );
   }
 
   // Extract restaurant name from the first dish that has restaurant info
   const dishWithRestaurant = parsedDishes.find(dish => 
-    (dish as any).restaurantInfo?.name
-  ) as any;
+    (dish as ParsedDish & { restaurantInfo?: { name: string } }).restaurantInfo?.name
+  ) as ParsedDish & { restaurantInfo?: { name: string } } | undefined;
   const restaurantName = dishWithRestaurant?.restaurantInfo?.name;
 
   return (

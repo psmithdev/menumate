@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProcessingScreen } from "@/components/ProcessingScreen";
+import { FlowStorage } from "@/utils/flowStorage";
+import { LoadingTransition } from "@/components/LoadingTransition";
+import { AnimatePresence } from "framer-motion";
 
 type ParsedDish = {
   id: string;
@@ -28,17 +31,22 @@ type ParsedDish = {
 export default function ProcessingPage() {
   const router = useRouter();
   const [menuImage, setMenuImage] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Get the image from sessionStorage
+    // Get the image from optimized storage
     const imageData = sessionStorage.getItem("menuImage");
     if (imageData) {
-      // Convert base64 back to File
+      // Convert base64 back to File with optimized loading
       fetch(imageData)
         .then(res => res.blob())
         .then(blob => {
           const file = new File([blob], "menu-image.jpg", { type: "image/jpeg" });
           setMenuImage(file);
+          setIsLoading(false);
+        })
+        .catch(() => {
+          router.push("/capture");
         });
     } else {
       // No image data, redirect to capture
@@ -47,11 +55,17 @@ export default function ProcessingPage() {
   }, [router]);
 
   const handleComplete = (dishes: ParsedDish[], ocrText: string, detectedLanguage: string) => {
-    // Store results and navigate to results page
-    sessionStorage.setItem("parsedDishes", JSON.stringify(dishes));
-    sessionStorage.setItem("ocrText", ocrText);
-    sessionStorage.setItem("detectedLanguage", detectedLanguage);
-    router.push("/results");
+    // Store results using optimized storage and navigate to results page
+    FlowStorage.setFlowData({
+      parsedDishes: dishes,
+      ocrText,
+      detectedLanguage
+    });
+    
+    // Small delay to ensure storage is complete
+    setTimeout(() => {
+      router.push("/results");
+    }, 30);
   };
 
   const handleRetakePhoto = () => {
@@ -59,10 +73,19 @@ export default function ProcessingPage() {
   };
 
   return (
-    <ProcessingScreen
-      menuImage={menuImage}
-      onComplete={handleComplete}
-      onRetakePhoto={handleRetakePhoto}
-    />
+    <>
+      <AnimatePresence>
+        <LoadingTransition 
+          isLoading={isLoading} 
+          message="Preparing image..." 
+        />
+      </AnimatePresence>
+      
+      <ProcessingScreen
+        menuImage={menuImage}
+        onComplete={handleComplete}
+        onRetakePhoto={handleRetakePhoto}
+      />
+    </>
   );
 }

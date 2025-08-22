@@ -10,33 +10,9 @@ export default function TranslatePage() {
   const router = useRouter();
   const [ocrText, setOcrText] = useState<string | null>(null);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
-  const [targetLanguage, setTargetLanguage] = useState<string>("en");
+  const targetLanguage = "en"; // Fixed to English for now
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Load data from sessionStorage
-    const ocrTextData = sessionStorage.getItem("ocrText");
-    const translatedTextData = sessionStorage.getItem("translatedText");
-    
-    if (ocrTextData) {
-      setOcrText(ocrTextData);
-    }
-    if (translatedTextData) {
-      setTranslatedText(translatedTextData);
-    }
-
-    // If no OCR text, redirect to results
-    if (!ocrTextData) {
-      router.push("/results");
-      return;
-    }
-
-    // Start translation if not already translated
-    if (ocrTextData && !translatedTextData) {
-      performTranslation(ocrTextData);
-    }
-  }, [router]);
 
   const performTranslation = async (text: string) => {
     setIsTranslating(true);
@@ -91,6 +67,30 @@ export default function TranslatePage() {
       setIsTranslating(false);
     }
   };
+
+  useEffect(() => {
+    // Load data from sessionStorage
+    const ocrTextData = sessionStorage.getItem("ocrText");
+    const translatedTextData = sessionStorage.getItem("translatedText");
+    
+    if (ocrTextData) {
+      setOcrText(ocrTextData);
+    }
+    if (translatedTextData) {
+      setTranslatedText(translatedTextData);
+    }
+
+    // If no OCR text, redirect to results
+    if (!ocrTextData) {
+      router.push("/results");
+      return;
+    }
+
+    // Start translation if not already translated
+    if (ocrTextData && !translatedTextData) {
+      performTranslation(ocrTextData);
+    }
+  }, [router, performTranslation]);
 
   const handleRetranslate = () => {
     setTranslatedText(null);

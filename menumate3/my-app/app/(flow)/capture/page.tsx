@@ -330,14 +330,20 @@ export default function CapturePage() {
   return (
     <>
       <AnimatePresence>
-        <LoadingTransition 
-          isLoading={isLoading} 
-          message="Loading camera..." 
-        />
-        <LoadingTransition 
-          isLoading={isProcessingImage} 
-          message="Processing image..." 
-        />
+        {isLoading && (
+          <LoadingTransition 
+            key="loading-camera"
+            isLoading={isLoading} 
+            message="Loading camera..." 
+          />
+        )}
+        {isProcessingImage && (
+          <LoadingTransition 
+            key="processing-image"
+            isLoading={isProcessingImage} 
+            message="Processing image..." 
+          />
+        )}
       </AnimatePresence>
       
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">

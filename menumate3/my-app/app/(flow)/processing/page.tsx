@@ -75,10 +75,13 @@ export default function ProcessingPage() {
   return (
     <>
       <AnimatePresence>
-        <LoadingTransition 
-          isLoading={isLoading} 
-          message="Preparing image..." 
-        />
+        {isLoading && (
+          <LoadingTransition 
+            key="preparing-image"
+            isLoading={isLoading} 
+            message="Preparing image..." 
+          />
+        )}
       </AnimatePresence>
       
       <ProcessingScreen
